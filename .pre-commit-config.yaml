@@ -1,0 +1,31 @@
+repos:
+  # 1. 基础文件检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace   # 删除行尾多余空格
+      - id: end-of-file-fixer     # 确保文件以换行符结尾
+      - id: check-yaml            # 检查 yaml 语法 (docker-compose 用)
+      - id: check-added-large-files # 防止意外提交大文件 (如模型权重)
+        args: ['--maxkb=10240']   # 限制 10MB
+
+  # 2. Ruff (Linting + Import 排序)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      # 运行 Linter (自动修复简单问题)
+      - id: ruff
+        args: [ --fix ]
+      # 运行 Formatter (自动格式化代码)
+      - id: ruff-format
+
+  # 3. Mypy (类型检查)
+  # 使用本地环境的 mypy，避免版本冲突
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        require_serial: true

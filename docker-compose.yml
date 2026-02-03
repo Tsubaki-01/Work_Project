@@ -1,0 +1,83 @@
+services:
+  # --- 1. 图数据库: Neo4j (用于 GraphRAG) ---
+  neo4j:
+    image: neo4j:5.15.0
+    container_name: silver_neo4j
+    ports:
+      - "7474:7474" # HTTP Console
+      - "7687:7687" # Bolt 协议
+    environment:
+      NEO4J_AUTH: neo4j/silver_pilot_password # 默认账号密码
+      NEO4J_PLUGINS: '["apoc"]' # 启用 APOC 插件，这对图算法很重要
+    volumes:
+      - ./data/neo4j_data:/data
+    networks:
+      - silver_net
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- 2. 向量数据库: Milvus (Standalone版) ---
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: silver_etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./data/etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - silver_net
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: silver_minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ./data/minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    networks:
+      - silver_net
+
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    container_name: silver_milvus
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./data/milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530" # Milvus API 端口
+    depends_on:
+      - "etcd"
+      - "minio"
+    networks:
+      - silver_net
+
+  milvus-attu:
+    image: zilliz/attu:v2.3.6 # 版本和 Milvus 2.3.3 匹配
+    container_name: silver_milvus_attu
+    ports:
+      - "8000:3000" # 宿主机 8000 端口映射到 Attu 的 3000 端口
+    environment:
+      MILVUS_URL: silver_milvus:19530 # 连接 Milvus 容器的地址（容器名+默认端口）
+    depends_on:
+      - "milvus"
+    networks:
+      - silver_net
+
+networks:
+  silver_net:
+    driver: bridge

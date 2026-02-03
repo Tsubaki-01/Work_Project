@@ -18,7 +18,39 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-    "ruff>=0.14.14",
-]
+dev = ["mypy>=1.19.1", "pre-commit>=4.5.1", "pytest>=9.0.2", "ruff>=0.14.14"]
+
+# --- Ruff 配置 (Linter & Formatter) ---
+[tool.ruff]
+# 目标 Python 版本
+target-version = "py311"
+# 行长限制（大厂通常放宽到 100 或 120，避免过多换行）
+line-length = 100
+
+[tool.ruff.lint]
+# 启用规则组合：
+# E: pycodestyle 错误
+# F: Pyflakes (检测未使用的导入/变量)
+# I: isort (自动排序 import)
+# B: flake8-bugbear (发现潜在 Bug)
+# UP: pyupgrade (自动升级旧语法，如 list() -> [])
+select = ["E", "F", "I", "B", "UP"]
+# 忽略的规则 (如有特殊需要可添加)
+ignore = []
+
+[tool.ruff.format]
+# 类似于 Black 的格式化风格
+quote-style = "double"
+indent-style = "space"
+
+# --- Mypy 配置 (静态类型检查) ---
+[tool.mypy]
+# 严格模式：工业级项目的标配，强制写 Type Hint
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true  # 函数必须有类型标注
+ignore_missing_imports = true # 忽略部分没有 stubs 的第三方库
+
+# 针对 src 目录进行检查
+files = ["src"]
