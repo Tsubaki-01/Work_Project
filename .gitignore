@@ -218,6 +218,9 @@ temp/
 notes/
 dev/
 .env
+.env.local
 .localrc
 logs/
 data/
+.pre-commit-config.yaml
+workspace/

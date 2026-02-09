@@ -9,8 +9,12 @@ services:
     environment:
       NEO4J_AUTH: neo4j/silver_pilot_password # 默认账号密码
       NEO4J_PLUGINS: '["apoc"]' # 启用 APOC 插件，这对图算法很重要
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
     volumes:
-      - ./data/neo4j_data:/data
+      - ./data/neo4j/neo4j_data:/data
+      - ./data/neo4j/neo4j_plugins:/plugins # 挂载 Neo4j 插件目录，否则 APOC 插件无法加载
+      - ./data/neo4j/neo4j_conf:/conf
     networks:
       - silver_net
     healthcheck:
@@ -29,7 +33,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ./data/etcd_data:/etcd
+      - ./data/etcd/etcd_data:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - silver_net
@@ -44,7 +48,7 @@ services:
       - "9001:9001"
       - "9000:9000"
     volumes:
-      - ./data/minio_data:/minio_data
+      - ./data/minio/minio_data:/minio_data
     command: minio server /minio_data --console-address ":9001"
     networks:
       - silver_net
@@ -57,7 +61,7 @@ services:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
     volumes:
-      - ./data/milvus_data:/var/lib/milvus
+      - ./data/milvus/milvus_data:/var/lib/milvus
     ports:
       - "19530:19530" # Milvus API 端口
     depends_on:

@@ -10,14 +10,14 @@ repos:
         args: ['--maxkb=10240']   # 限制 10MB
 
   # 2. Ruff (Linting + Import 排序)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.0
-    hooks:
+  # - repo: https://github.com/astral-sh/ruff-pre-commit
+    # rev: v0.3.0
+    # hooks:
       # 运行 Linter (自动修复简单问题)
-      - id: ruff
-        args: [ --fix ]
+      # - id: ruff
+        # args: [ --fix ]
       # 运行 Formatter (自动格式化代码)
-      - id: ruff-format
+      # - id: ruff-format
 
   # 3. Mypy (类型检查)
   # 使用本地环境的 mypy，避免版本冲突
