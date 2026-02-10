@@ -1,67 +1,56 @@
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 class PromptManager:
     def __init__(self, template_dir: str | Path | None = None):
-        # 默认定位到当前文件所在目录下的 templates 文件夹
-        if template_dir is None:
-            self.template_dir: Path = Path(__file__).parent / "templates"
-        else:
-            self.template_dir = Path(template_dir)
+        self.template_dir = (
+            Path(template_dir) if template_dir else Path(__file__).parent / "templates"
+        )
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(self.template_dir)), autoescape=select_autoescape()
+        )
 
-        self._cache: dict[str, dict[str, Any]] = {}  # 可选：用于缓存读取过的 yaml 文件
+    def _resolve_path(self, prompt_path: str | Path) -> Path:
+        """统一路径解析逻辑：处理绝对路径、相对路径和后缀"""
+        p = Path(prompt_path)
+        if not p.is_absolute():
+            p = self.template_dir / p
+        return p.with_suffix(".yaml") if not p.suffix else p
 
-    def load_prompt(self, relative_path: str | Path) -> dict[str, Any]:
-        """读取原始 YAML 配置"""
-        # 如果已经是绝对路径，直接使用；否则与 template_dir 拼接
-        input_path = Path(relative_path)
-        if input_path.is_absolute():
-            path = input_path
-        else:
-            path = self.template_dir / input_path
+    @lru_cache(maxsize=128)
+    def _get_raw_config(self, full_path: str) -> dict[str, Any]:
+        """读取并解析 YAML 原始数据（带 LRU 缓存）"""
+        if not Path(full_path).exists():
+            raise FileNotFoundError(f"Prompt file not found: {full_path}")
+        with open(full_path, encoding="utf-8") as f:
+            return yaml.safe_load(f)
 
-        # 自动补全后缀
-        if not path.suffix:
-            path = path.with_suffix(".yaml")
-
-        if not path.exists():
-            raise FileNotFoundError(f"Prompt file not found: {path}")
-
-        # 简单的缓存机制，避免频繁 IO
-        if str(path) in self._cache:
-            return self._cache[str(path)]  # type: ignore[no-any-return]
-
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-            self._cache[str(path)] = data
-            return data  # type: ignore[no-any-return]
+    def get_model_config(self, prompt_path: str | Path) -> dict[str, Any]:
+        """获取该 Prompt 对应的模型配置"""
+        # 1. 解析路径
+        p = self._resolve_path(prompt_path)
+        # 2. 从缓存（或磁盘）获取原始配置
+        config = self._get_raw_config(str(p))
+        # 3. 返回配置项
+        return config.get("model_config", {})
 
     def render(self, prompt_path: str | Path, **kwargs) -> list[dict[str, str]]:  # type: ignore[no-untyped-def]
-        """
-        读取并渲染 Prompt。
-        :param prompt_path: 相对路径，例如 'agent/reasoning'
-        :param kwargs: 注入到 Jinja2 模板中的变量
-        :return: 格式化好的 messages 列表，可直接传给 LLM API
-        """
-        config = self.load_prompt(prompt_path)
+        """渲染 Prompt 消息列表"""
+        p = self._resolve_path(prompt_path)
+        config = self._get_raw_config(str(p))
         messages = config.get("messages", [])
 
         rendered_messages = []
         for msg in messages:
-            template = Template(msg["content"])
-            rendered_content = template.render(**kwargs)
-            rendered_messages.append({"role": msg["role"], "content": rendered_content})
-
+            # 复用 jinja_env 的从字符串创建模板功能
+            template = self.jinja_env.from_string(msg["content"])
+            rendered_messages.append({"role": msg["role"], "content": template.render(**kwargs)})
         return rendered_messages
-
-    def get_model_config(self, prompt_path: str) -> dict[str, Any]:
-        """获取该 Prompt 对应的模型配置"""
-        config = self.load_prompt(prompt_path)
-        return config.get("model_config", {})  # type: ignore[no-any-return]
 
 
 # 实例化一个单例对象

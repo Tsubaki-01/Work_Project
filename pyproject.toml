@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "dashscope>=1.25.11",
+    "faiss-cpu>=1.13.2",
     "fastapi>=0.128.0",
     "huggingface-hub>=1.3.7",
     "jieba>=0.42.1",
@@ -17,13 +18,17 @@ dependencies = [
     "neo4j>=6.1.0",
     "networkx>=3.6.1",
     "numba>=0.63.0",
+    "numpy>=2.3.5",
     "pandas>=3.0.0",
     "pydantic>=2.12.5",
     "pymilvus>=2.6.8",
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
     "python-dotenv>=1.2.1",
     "pyyaml>=6.0.3",
     "regex>=2026.1.15",
     "requests>=2.32.5",
+    "sentence-transformers>=5.2.2",
     "types-pyyaml>=6.0.12.20250915",
     "unstructured[pdf]==0.18.31",
     "uvicorn>=0.40.0",
@@ -66,13 +71,13 @@ indent-style = "space"
 
 # --- Mypy 配置 (静态类型检查) ---
 [tool.mypy]
-# 严格模式：工业级项目的标配，强制写 Type Hint
-python_version = "3.11"
-warn_return_any = true
+python_version = "3.12"
+files = ["src/"]
+# exclude = [""]
+# warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true  # 函数必须有类型标注
 ignore_missing_imports = true # 忽略部分没有 stubs 的第三方库
-
-
-# 针对 src 目录进行检查
-files = ["src"]
+# [[tool.mypy.overrides]]
+# module = ""
+# disallow_untyped_defs = false

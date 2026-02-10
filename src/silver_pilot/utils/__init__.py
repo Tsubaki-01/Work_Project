@@ -1,3 +1,3 @@
-from .log import log
+from .log import LogManager
 
-__all__ = ["log"]
+__all__ = ["LogManager"]
