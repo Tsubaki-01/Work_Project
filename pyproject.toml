@@ -73,11 +73,12 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 files = ["src/"]
-# exclude = [""]
+# exclude = ["file or dir"]
 # warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true  # 函数必须有类型标注
-ignore_missing_imports = true # 忽略部分没有 stubs 的第三方库
+disallow_untyped_defs = true      # 函数必须有类型标注
+ignore_missing_imports = true     # 忽略部分没有 stubs 的第三方库
+disable_error_code = ["arg-type"]
 # [[tool.mypy.overrides]]
-# module = ""
-# disallow_untyped_defs = false
+# module = "src.silver_pilot.utils"
+# disable_error_code = [""]

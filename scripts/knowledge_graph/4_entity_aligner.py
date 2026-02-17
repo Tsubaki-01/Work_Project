@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 import faiss
 import pandas as pd
@@ -12,7 +13,7 @@ from silver_pilot.utils.log import LogManager
 
 # ================= 配置区域 =================
 # 1. 路径配置
-CMEKG_CSV_PATH = config.DATA_DIR / "raw/datasets/full_export.csv"  # 你的CMeKG全量节点文件
+CMEKG_CSV_PATH = config.DATA_DIR / "raw/databases/neo4j/full_export.csv"  # 你的CMeKG全量节点文件
 EXTRACTED_JSON_PATH = config.DATA_DIR / "processed/KG/triplets"
 OUTPUT_CSV_PATH = config.DATA_DIR / "processed/KG/entity_alignment/entity_alignment_results.csv"
 LOG_FILE_DIR = config.DATA_DIR / "processed/KG/entity_alignment"
@@ -50,7 +51,7 @@ class EntityAligner:
         # 3. 去除冒号和首尾空格
         return label_str.replace(":", "").strip()
 
-    def load_cmekg_data(self, csv_path: str) -> dict[str, pd.DataFrame]:
+    def load_cmekg_data(self, csv_path: str | Path) -> dict[str, pd.DataFrame]:
         """
         分块加载大型CSV，并按Label分组存储 (已增加空值容错处理)
         """
@@ -118,7 +119,7 @@ class EntityAligner:
             logger.error(traceback.format_exc())
             sys.exit(1)
 
-    def load_extracted_data(self, json_path: str) -> dict[str, list[str]]:
+    def load_extracted_data(self, json_path: str | Path) -> dict[str, list[str]]:
         """
         加载JSON数据（支持单文件或文件夹），提取唯一实体并按Label分组
         """

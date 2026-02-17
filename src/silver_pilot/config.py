@@ -28,6 +28,9 @@ class Config:
     # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     # DEBUG_MODE = os.getenv("DEBUG", "False").lower() == "true"
     DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
+    NEO4J_URI = os.getenv("NEO4J_URI")
+    NEO4J_USER = os.getenv("NEO4J_USER")
+    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
     # --- 自动初始化 (可选) ---
     @classmethod

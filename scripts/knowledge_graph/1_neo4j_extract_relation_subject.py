@@ -4,7 +4,7 @@ import pandas as pd
 
 from silver_pilot.config import config
 
-df = pd.read_csv(config.DATA_DIR / "raw" / "datasets" / "full_export.csv")
+df = pd.read_csv(config.DATA_DIR / "raw/databases/neo4j/full_export.csv")
 
 unique_labels = df["_labels"].dropna().unique().tolist()
 unique_types = df["_type"].dropna().unique().tolist()
