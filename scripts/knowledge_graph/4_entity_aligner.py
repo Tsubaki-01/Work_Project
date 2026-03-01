@@ -9,7 +9,7 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer
 
 from silver_pilot.config import config
-from silver_pilot.utils.log import LogManager
+from silver_pilot.utils import get_channel_logger
 
 # ================= 配置区域 =================
 # 1. 路径配置
@@ -19,15 +19,14 @@ OUTPUT_CSV_PATH = config.DATA_DIR / "processed/KG/entity_alignment/entity_alignm
 LOG_FILE_DIR = config.DATA_DIR / "processed/KG/entity_alignment"
 
 # 2. 模型配置
-MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"  # 或 'shibing624/text2vec-base-chinese'
-BATCH_SIZE = 64  # 计算向量时的批次大小，显存/内存不够可调小
+MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+BATCH_SIZE = 64
 
 # 3. 匹配逻辑
 SIMILARITY_THRESHOLD = 0.85  # 相似度阈值
 
 # 4. 日志配置
-log_manager = LogManager(LOG_FILE_DIR, "EntityAligner")
-logger = log_manager.get_logger()
+logger = get_channel_logger(LOG_FILE_DIR, "EntityAligner")
 # ===========================================
 
 

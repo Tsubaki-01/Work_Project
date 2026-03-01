@@ -6,16 +6,15 @@ from neo4j import GraphDatabase
 
 # ================= 导入 =================
 from silver_pilot.config import config
-from silver_pilot.utils import LogManager
+from silver_pilot.utils import get_channel_logger
 
 # ================= 日志与配置初始化 =================
-LOG_FILE_DIR = config.LOG_DIR / "neo4j_etl"
-log_manager = LogManager(LOG_FILE_DIR, "Neo4jETLManager")
-logger = log_manager.get_logger()
+LOG_FILE_DIR = config.LOG_DIR / "neo4j_logs"
+logger = get_channel_logger(LOG_FILE_DIR, "Neo4jManager")
 # ===================================================
 
 
-class Neo4jETLManager:
+class Neo4jManager:
     """
     Neo4j 知识图谱 ETL 与 CRUD 核心管理器。
     用于在项目软件中实现对图数据库中节点、关系的增删改查操作。
@@ -295,7 +294,7 @@ if __name__ == "__main__":
     ]
 
     for desc, raw_label in test_cases:
-        cleaned = Neo4jETLManager.normalize_label(raw_label)
+        cleaned = Neo4jManager.normalize_label(raw_label)
         print(f"[{desc:^15}] 原始值: {repr(raw_label):<25} -> 清洗后: {repr(cleaned)}")
 
     print("\n" + "=" * 50)
@@ -310,7 +309,7 @@ if __name__ == "__main__":
 
         # 实例化 Manager (此时内部的 self.driver 是一个 Mock 对象)
         # 传入虚拟的 uri 防止读取真实 config 去尝试连接
-        manager = Neo4jETLManager(uri="bolt://fake-mock-db:7687", auth=("fake", "fake"))
+        manager = Neo4jManager(uri="bolt://fake-mock-db:7687", auth=("fake", "fake"))
 
         # --- 1. 测试增 (Mock) ---
         mock_triplets = [

@@ -6,7 +6,7 @@ import pandas as pd
 from neo4j import GraphDatabase
 
 from silver_pilot.config import config
-from silver_pilot.utils import LogManager
+from silver_pilot.utils import get_channel_logger
 
 # ================= 配置区域 =================
 # 1. Neo4j 数据库连接
@@ -21,8 +21,7 @@ ALIGNMENT_FILE = (
 
 # 3. 日志配置
 LOG_FILE_DIR = config.DATA_DIR / "processed/KG/import_to_neo4j"
-log_manager = LogManager(LOG_FILE_DIR, "KnowledgeGraphImporter")
-logger = log_manager.get_logger()
+logger = get_channel_logger(LOG_FILE_DIR, "KnowledgeGraphImporter")
 # ===========================================
 
 
