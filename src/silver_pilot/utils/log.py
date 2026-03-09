@@ -11,7 +11,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from silver_pilot.config import config
+from ..config import config
 
 # --- 模块级状态记录，用于防止重复添加 Handler ---
 _CONSOLE_INITIALIZED = False

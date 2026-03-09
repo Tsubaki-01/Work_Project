@@ -12,8 +12,8 @@ import pandas as pd
 from neo4j import GraphDatabase
 
 # ================= 导入 =================
-from silver_pilot.config import config
-from silver_pilot.utils import get_channel_logger
+from ..config import config
+from ..utils import get_channel_logger
 
 # ================= 日志与配置初始化 =================
 LOG_FILE_DIR = config.LOG_DIR / "neo4j_logs"

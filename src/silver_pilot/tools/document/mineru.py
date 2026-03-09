@@ -15,8 +15,8 @@ import requests
 from pydantic import BaseModel, Field
 
 # ========== 项目配置 ==========
-from silver_pilot.config import config
-from silver_pilot.utils import get_channel_logger
+from ...config import config
+from ...utils import get_channel_logger
 
 logger = get_channel_logger(log_dir=config.LOG_DIR / "mineru", channel_name="MinerU")
 

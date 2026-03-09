@@ -11,8 +11,8 @@ from typing import Any
 from pymilvus import Collection, CollectionSchema, connections, utility
 
 # ================= 导入 =================
-from silver_pilot.config import config
-from silver_pilot.utils import get_channel_logger
+from ..config import config
+from ..utils import get_channel_logger
 
 # ================= 日志与配置初始化 =================
 LOG_FILE_DIR: Path = config.LOG_DIR / "milvus_logs"
@@ -93,7 +93,9 @@ class MilvusManager:
 
         # 3. 为指定的向量字段创建索引
         self.collection.create_index(field_name=index_field_name, index_params=index_params)
-        logger.success(f"🚀 集合 {self.collection_name} 初始化成功，已为字段 '{index_field_name}' 挂载索引！")
+        logger.success(
+            f"🚀 集合 {self.collection_name} 初始化成功，已为字段 '{index_field_name}' 挂载索引！"
+        )
         return self.collection
 
     def insert_data(self, entities: list[list[Any]]) -> Any:
@@ -248,11 +250,19 @@ if __name__ == "__main__":
 
         # 3. 外部定义具体的业务 Schema (适配 huatuo26m-lite)
         fields: list[FieldSchema] = [
-            FieldSchema(name="qa_id", dtype=DataType.INT64, is_primary=True, description="唯一QA对ID"),
-            FieldSchema(name="question", dtype=DataType.VARCHAR, max_length=1000, description="患者问题"),
-            FieldSchema(name="answer", dtype=DataType.VARCHAR, max_length=4000, description="医生回答"),
+            FieldSchema(
+                name="qa_id", dtype=DataType.INT64, is_primary=True, description="唯一QA对ID"
+            ),
+            FieldSchema(
+                name="question", dtype=DataType.VARCHAR, max_length=1000, description="患者问题"
+            ),
+            FieldSchema(
+                name="answer", dtype=DataType.VARCHAR, max_length=4000, description="医生回答"
+            ),
             FieldSchema(name="score", dtype=DataType.INT32, description="回答质量分数"),
-            FieldSchema(name="label", dtype=DataType.VARCHAR, max_length=100, description="科室标签"),
+            FieldSchema(
+                name="label", dtype=DataType.VARCHAR, max_length=100, description="科室标签"
+            ),
             FieldSchema(
                 name="question_vector",
                 dtype=DataType.FLOAT_VECTOR,
@@ -303,7 +313,9 @@ if __name__ == "__main__":
         logger.info("✅ 检索测试成功！输出检索结果：")
         for hits in search_res:
             for hit in hits:
-                logger.info(f"匹配 ID: {hit.entity.get('qa_id')}, 距离(距离越近越相似): {hit.distance:.4f}")
+                logger.info(
+                    f"匹配 ID: {hit.entity.get('qa_id')}, 距离(距离越近越相似): {hit.distance:.4f}"
+                )
                 logger.info(f"问题: {hit.entity.get('question')}")
                 logger.info(f"回答: {hit.entity.get('answer')} (得分: {hit.entity.get('score')})")
                 logger.info("-" * 30)
@@ -324,7 +336,9 @@ if __name__ == "__main__":
 
         # 立刻用 query_data 去精准打捞，验证是否真的改掉了
         logger.info("🔎 验证 Upsert 结果：精确查询 qa_id == 102...")
-        upsert_verify = manager.query_data(expr="qa_id == 102", output_fields=["qa_id", "answer", "score"])
+        upsert_verify = manager.query_data(
+            expr="qa_id == 102", output_fields=["qa_id", "answer", "score"]
+        )
 
         if upsert_verify and upsert_verify[0].get("score") == 5:
             logger.success(f"🎉 Upsert 验证成功！数据已更新: {upsert_verify[0]}")
@@ -336,10 +350,14 @@ if __name__ == "__main__":
         manager.delete_by_expr(expr=f"qa_id == {delete_target_id}")
 
         logger.info(f"🔍 执行第二轮检索：尝试精准打捞刚才删除的 qa_id == {delete_target_id} ...")
-        verify_res = manager.query_data(expr=f"qa_id == {delete_target_id}", output_fields=["qa_id", "question"])
+        verify_res = manager.query_data(
+            expr=f"qa_id == {delete_target_id}", output_fields=["qa_id", "question"]
+        )
 
         if len(verify_res) == 0:
-            logger.success(f"🎉 验证成功：已无法查询到 qa_id == {delete_target_id} 的数据，删除机制生效！")
+            logger.success(
+                f"🎉 验证成功：已无法查询到 qa_id == {delete_target_id} 的数据，删除机制生效！"
+            )
         else:
             logger.error(f"❌ 验证失败：竟然还能查到已删除的数据！返回结果: {verify_res}")
 
