@@ -1,7 +1,7 @@
 """
 模块名称：mineru
-功能描述：MinerU PDF转Markdown 服务模块，封装了文件上传、提取结果查询、结果下载
-         以及完整的 PDF→MD 转换工作流，提供统一的异常处理与日志记录。
+功能描述：MinerU 转Markdown 服务模块，封装了文件上传、提取结果查询、结果下载
+         以及完整的 MD 转换工作流，提供统一的异常处理与日志记录。
 """
 
 import io
@@ -118,7 +118,7 @@ class MinerUExtractResponse(BaseModel):
 
 class MinerUService:
     """
-    MinerU PDF→Markdown 转换服务。
+    MinerU Markdown 转换服务。
 
     使用示例::
 
@@ -429,13 +429,13 @@ class MinerUService:
         timeout: int = DEFAULT_TIMEOUT,
     ) -> list[Path]:
         """
-        一站式 PDF→Markdown 转换流程：上传 → 轮询 → 下载。
+        一站式 Markdown 转换流程：上传 → 轮询 → 下载。
 
         Args:
-            file_paths: 本地 PDF 文件路径列表
+            file_paths: 本地文件路径列表或html文件路径列表
             output_dir: 结果输出目录
             is_ocr: 是否启用OCR，默认True
-            model_version: 模型版本，默认 "vlm"
+            model_version: 模型版本，默认 "vlm"，html文件请使用 "MinerU-HTML"
             poll_interval: 轮询间隔秒数
             timeout: 最大等待秒数
 
@@ -446,7 +446,7 @@ class MinerUService:
             MinerUError: 任一阶段发生错误
         """
         output_path = Path(output_dir)
-        logger.info(f"===== 开始 PDF→MD 转换流程，共 {len(file_paths)} 个文件 =====")
+        logger.info(f"===== 开始 MD 转换流程，共 {len(file_paths)} 个文件 =====")
 
         # Step 1: 构建文件请求
         file_requests = [MinerUFileRequest(name=Path(fp).name, is_ocr=is_ocr) for fp in file_paths]
@@ -468,5 +468,5 @@ class MinerUService:
         # Step 5: 下载结果（仅保留 .md 文件）
         md_files = self.download_results(extract_resp, output_path)
 
-        logger.info(f"===== PDF→MD 转换流程完成，共获得 {len(md_files)} 个 .md 文件 =====")
+        logger.info(f"===== MD 转换流程完成，共获得 {len(md_files)} 个 .md 文件 =====")
         return md_files

@@ -154,12 +154,39 @@ class MarkdownCleaner:
             ]
         ]
 
-        # ---- 标题层级识别 ----
-        self.h2_pattern: re.Pattern[str] = re.compile(r"^第[一二三四五六七八九十百]+[章篇]\b")
-        self.h3_pattern: re.Pattern[str] = re.compile(
-            r"^(第[一二三四五六七八九十百]+节|分篇[一二三四五六七八九十百]+)\b"
+        # ---- 标题层级识别（用于 format_headers，处理无 # 前缀的纯文本行）----
+        # h2: 章 / 篇 / 部 / 部分 / 编 / 中文序号「一、」
+        self.h2_pattern: re.Pattern[str] = re.compile(
+            r"^("
+            r"第[一二三四五六七八九十百零○〇]+[章篇部编]"  # 第一章、第二篇、第三部
+            r"|第\d+[章篇部编]"  # 第1章、第2篇
+            r"|第[一二三四五六七八九十百零○〇]+部分"  # 第一部分
+            r"|第\d+部分"  # 第1部分
+            r"|[一二三四五六七八九十]+、"  # 一、 二、
+            r")"
         )
-        self.h4_pattern: re.Pattern[str] = re.compile(r"^\d{3}\s+\S+")
+        # h3: 节 / 条 / 款 / 分篇 / 带括号的序号
+        self.h3_pattern: re.Pattern[str] = re.compile(
+            r"^("
+            r"第[一二三四五六七八九十百零○〇]+[节条款项]"  # 第一节、第二条、第三款
+            r"|第\d+[节条款项]"  # 第1节、第2条
+            r"|分篇[一二三四五六七八九十百]+"  # 分篇一
+            r"|[（(][一二三四五六七八九十]+[)）]"  # （一）(一)
+            r"|[（(]\d+[)）]"  # （1）(1)
+            r")"
+        )
+        # h4: 目 / 多级编号 / 3位数代码 / 带圈序号 / 字母序号
+        self.h4_pattern: re.Pattern[str] = re.compile(
+            r"^("
+            r"第[一二三四五六七八九十百零○〇]+目"  # 第一目
+            r"|第\d+目"  # 第1目
+            r"|\d{3}\s+\S+"  # 101 标题
+            r"|\d+\.\d+\.\d+\s+\S+"  # 1.1.1 标题
+            r"|\d+\.\d+\s+\S+"  # 1.1 标题
+            r"|[①②③④⑤⑥⑦⑧⑨⑩]"  # 带圈数字
+            r"|[a-zA-Z][)）]\s+\S+"  # a) 标题
+            r")"
+        )
 
         # ---- 列表 / 表格 ----
         self.list_pattern: re.Pattern[str] = re.compile(r"^(\d+\.|[\-\*\+])\s+")
@@ -605,10 +632,7 @@ class MarkdownCleaner:
     # ===================================================================
 
     def remove_toc(self, lines: list[str]) -> list[str]:
-        """移除目录区域（从"目录"关键字到正文恢复为止）。
-
-        [Bug 3 修复] 增加退出条件：遇到 Markdown 标题（``#``）时也退出目录区域。
-        """
+        """移除目录区域（从"目录"关键字到正文恢复为止）。"""
         cleaned: list[str] = []
         in_toc_zone: bool = False
         original_count: int = len(lines)
@@ -634,12 +658,7 @@ class MarkdownCleaner:
             if in_toc_zone and self.toc_title_pattern.match(s):
                 continue
 
-            # [Bug 3 修复] 遇到 Markdown 标题 `#` 时退出目录区域
-            if in_toc_zone and s.startswith("#"):
-                in_toc_zone = False
-                logger.debug("Markdown 标题退出目录区域: '{}'", s)
-
-            # 原有退出条件：长行视为正文
+            # 长行视为正文
             if in_toc_zone and len(s) > 30 and not self.toc_guide_pattern.search(s):
                 in_toc_zone = False
 
@@ -842,7 +861,7 @@ class MarkdownCleaner:
     # ===================================================================
 
     def format_headers(self, lines: list[str]) -> list[str]:
-        """为中文章节标题自动添加 Markdown 标题级别前缀。"""
+        """为中文章节标题自动添加 Markdown 标题级别前缀（针对无 # 前缀的行）。"""
         new_lines: list[str] = []
         for line in lines:
             s: str = line.strip()
@@ -857,6 +876,84 @@ class MarkdownCleaner:
                 new_lines.append("#### " + s)
             else:
                 new_lines.append(line)
+        return new_lines
+
+    def normalize_heading_levels(self, lines: list[str]) -> list[str]:
+        """根据编号层级重新分配 Markdown 标题级别。
+
+        PDF 提取的文档通常将所有标题设为 ``#``（h1）。此方法通过分析
+        编号模式（``1``、``2.1``、``2.1.1``）和中文章节标题来推断正确的
+        层级，让后续文档可按标题层级追溯。
+
+        层级映射规则：
+        - 文档标题（已由 ``extract_frontmatter`` 提取）→ ``#``（h1）
+        - ``# N 标题``（单级编号）→ ``##``（h2）
+        - ``# N.M 标题``（两级编号）→ ``###``（h3）
+        - ``# N.M.K 标题``（三级及以上编号）→ ``####``（h4）
+        - ``# 第X章`` → ``##``（h2）
+        - ``# 第X节`` / ``# 分篇X`` → ``###``（h3）
+        - 其他非编号的 ``#`` 标题 → 保持不变
+        """
+        # 编号层级检测模式
+        numbered_heading_pattern: re.Pattern[str] = re.compile(r"^(#+)\s+((\d+(?:\.\d+)*)\s+.+)$")
+        # h2: 章 / 篇 / 部 / 部分 / 编 / 中文序号
+        chinese_h2_pattern: re.Pattern[str] = re.compile(
+            r"^(#+)\s+(("
+            r"第[一二三四五六七八九十百零○〇]+[章篇部编]"
+            r"|第\d+[章篇部编]"
+            r"|第[一二三四五六七八九十百零○〇]+部分"
+            r"|第\d+部分"
+            r"|[一二三四五六七八九十]+、"
+            r").*)$"
+        )
+        # h3: 节 / 条 / 款 / 项 / 分篇 / 带括号序号
+        chinese_h3_pattern: re.Pattern[str] = re.compile(
+            r"^(#+)\s+(("
+            r"第[一二三四五六七八九十百零○〇]+[节条款项]"
+            r"|第\d+[节条款项]"
+            r"|分篇[一二三四五六七八九十百]+"
+            r"|[（(][一二三四五六七八九十]+[)）]"
+            r"|[（(]\d+[)）]"
+            r").*)$"
+        )
+
+        new_lines: list[str] = []
+        for line in lines:
+            s: str = line.strip()
+
+            # 跳过空行、保护块、非标题行
+            if not s or "__PROTECTED_BLOCK_" in s or not s.startswith("#"):
+                new_lines.append(line)
+                continue
+
+            # ---- 数字编号标题 ----
+            m = numbered_heading_pattern.match(s)
+            if m:
+                content: str = m.group(2)  # "2.1 对症治疗药物"
+                number_part: str = m.group(3)  # "2.1"
+                depth: int = number_part.count(".") + 1  # 编号层级深度
+                # 层级映射：depth 1 → h2, depth 2 → h3, depth 3+ → h4
+                level: int = min(depth + 1, 4)
+                new_lines.append("#" * level + " " + content)
+                continue
+
+            # ---- 中文 h2 标题（章/篇/部/编/部分/序号） ----
+            m = chinese_h2_pattern.match(s)
+            if m:
+                content = m.group(2)
+                new_lines.append("## " + content)
+                continue
+
+            # ---- 中文 h3 标题（节/条/款/项/分篇/括号序号） ----
+            m = chinese_h3_pattern.match(s)
+            if m:
+                content = m.group(2)
+                new_lines.append("### " + content)
+                continue
+
+            # ---- 其他 # 标题保持原样 ----
+            new_lines.append(line)
+
         return new_lines
 
     def smart_merge_paragraphs(self, lines: list[str]) -> list[str]:
@@ -1027,6 +1124,7 @@ class MarkdownCleaner:
 
         if self.options.format_headers:
             lines = self.format_headers(lines)
+            lines = self.normalize_heading_levels(lines)
 
         if self.options.merge_paragraphs:
             lines = self.smart_merge_paragraphs(lines)
