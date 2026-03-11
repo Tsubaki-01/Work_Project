@@ -10,4 +10,4 @@ file_paths = list(dir_path.rglob("*.md"))
 
 cleaner = MarkdownCleaner()
 for file_path in tqdm(file_paths, desc="Cleaning Markdown files"):
-    cleaned_text = cleaner.clean(file_path, output_path / file_path.name)
+    cleaned_path = cleaner.clean_file(file_path, output_path / file_path.name)
