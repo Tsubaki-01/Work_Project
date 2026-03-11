@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from silver_pilot.tools.document import FileToMarkdownConverter
+from silver_pilot.tools.document import MinerUConverter
 
 # ========== 配置：在此处添加要处理的文件夹路径 ==========
 
@@ -61,7 +61,7 @@ def main() -> None:
     print(f"\n共找到 {total_files} 个 PDF 文件，分布在 {len(grouped_pdfs)} 个文件夹中。\n")
 
     # 2. 逐个文件夹调用 MinerU 处理，output_dir 为 PDF 文件的原文件夹
-    service = FileToMarkdownConverter()
+    service = MinerUConverter()
     for folder, pdf_files in grouped_pdfs.items():
         print(f"{'=' * 60}")
         print(f"正在处理文件夹: {folder}")

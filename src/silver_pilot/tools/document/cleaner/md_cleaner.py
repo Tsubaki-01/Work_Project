@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from tqdm import tqdm
+
 from silver_pilot.config import config
 from silver_pilot.utils import get_channel_logger
 
@@ -1154,7 +1156,7 @@ class MarkdownCleaner:
 
         return yaml_frontmatter + result_text.strip() + "\n"
 
-    def clean(self, file_path: Path | str, output_path: Path | str) -> str:
+    def clean_file(self, file_path: Path | str, output_path: Path | str) -> Path:
         """清洗 Markdown 文件。
 
         Parameters
@@ -1178,4 +1180,27 @@ class MarkdownCleaner:
             output_path = Path(output_path)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(result_text)
-        return result_text
+        return output_path
+
+    def clean(self, file_paths: list[Path | str], output_dir: Path | str) -> list[Path]:
+        """清洗 Markdown 文件列表。
+
+        Parameters
+        ----------
+        file_paths : list[Path | str]
+            待清洗的 Markdown 文件路径列表。
+        output_dir : Path | str
+            清洗后文件的保存路径。
+
+        Returns
+        -------
+        list[Path]
+            清洗后的纯净文本列表。
+        """
+        if isinstance(output_dir, str):
+            output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        cleaned_paths: list[Path] = []
+        for file_path in tqdm(file_paths, desc="Cleaning Markdown files"):
+            cleaned_paths.append(self.clean_file(file_path, output_dir / file_path.name))
+        return cleaned_paths

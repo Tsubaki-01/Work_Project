@@ -1,5 +1,5 @@
 """
-模块名称：file_to_md_converter
+模块名称：mineru_converter
 功能描述：MinerU 实现文件转Markdown 服务模块，封装了文件上传、提取结果查询、结果下载
          以及完整的 MD 转换工作流，提供统一的异常处理与日志记录。
 """
@@ -19,7 +19,7 @@ from silver_pilot.config import config
 from silver_pilot.utils import get_channel_logger
 
 logger = get_channel_logger(
-    log_dir=config.LOG_DIR / "file_to_md_converter", channel_name="file_to_md_converter"
+    log_dir=config.LOG_DIR / "mineru_converter", channel_name="mineru_converter"
 )
 
 # ========== 常量 ==========
@@ -118,13 +118,13 @@ class MinerUExtractResponse(BaseModel):
 # ========== 服务类 ==========
 
 
-class FileToMarkdownConverter:
+class MinerUConverter:
     """
     MinerU Markdown 转换服务。
 
     使用示例::
 
-        service = FileToMarkdownConverter()
+        service = MinerUConverter()
         results = service.process(
             file_paths=["path/to/document.pdf"],
             output_dir=Path("output"),
