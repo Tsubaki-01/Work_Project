@@ -19,7 +19,7 @@ MIN_CHUNK_SIZE: int = 100
 OVERLAP_LENGTH: int = 100
 
 # 中文标点断点优先级（从高到低）
-SPLIT_DELIMITERS: list[str] = ["\n", "。", "！", "？", "；", "，"]
+SPLIT_DELIMITERS: list[str] = ["\n\n", "\n", "。", "！", "？", "；", "，"]
 
 # ================= 日志初始化 =================
 LOG_FILE_DIR: Path = config.LOG_DIR / "chunker_base"
@@ -100,6 +100,7 @@ class TextSplitter:
 
         segments: list[str] = []
         start = 0
+        last_split_pos = 0
 
         while start < len(text):
             end = start + self.max_chunk_size
@@ -108,11 +109,25 @@ class TextSplitter:
                 segments.append(text[start:])
                 break
 
-            # 在 [start, end] 范围内寻找最近的断点
-            split_pos = self._find_split_point(text, start, end, protected_ranges)
+            # 确定寻找断点的搜索下限 (min_pos):
+            # 1. 优先在切片后半段寻找(避免切出碎片化短 chunk)。
+            # 2. 严格要求大于最后一次切分点(last_split_pos)，这防止了因前后 chunk 极端重叠
+            #    导致循环选中同一个标点、产生“每次只前进 1 字符”和死循环的问题。
+            min_pos = max(start + self.max_chunk_size // 2, last_split_pos + 1)
+
+            if min_pos >= end:
+                split_pos = end
+            else:
+                # 在 [min_pos, end] 范围内寻找最近的断点
+                split_pos = self._find_split_point(text, min_pos, end, protected_ranges)
+
             segments.append(text[start:split_pos])
 
-            # 带重叠地向前推进
+            # 记录这次的截断点
+            last_split_pos = split_pos
+
+            # 带重叠地向前推进：回退 overlap_size。
+            # 为了极端健壮性，绝不允许 start 倒退或在原地打转，保证至少前进一定距离。
             start = max(split_pos - self.overlap_size, start + 1)
 
         logger.debug(f"二次分段完成，共生成 {len(segments)} 段")
@@ -125,19 +140,19 @@ class TextSplitter:
     def _find_split_point(
         self,
         text: str,
-        start: int,
+        min_pos: int,
         end: int,
         protected_ranges: list[tuple[int, int]],
     ) -> int:
         """
-        在 [start, end] 内寻找最优断点。
+        在寻找区间 [min_pos, end] 内部寻找最优断点。
 
         优先级：换行符 > 。 > ！ > ？ > ； > ， > 强制截断。
         同时避免在 LaTeX 公式内部截断。
         """
         for delim in SPLIT_DELIMITERS:
-            pos = text.rfind(delim, start, end)
-            if pos > start:
+            pos = text.rfind(delim, min_pos, end)
+            if pos != -1:
                 candidate = pos + len(delim)
                 # 检查是否在公式保护区间内
                 if not self._is_in_protected_range(candidate, protected_ranges):

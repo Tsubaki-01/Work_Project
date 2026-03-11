@@ -219,7 +219,10 @@ class MarkdownCleaner:
         )
 
         # ---- 引用标记 ----
-        self.latex_cite_pattern: re.Pattern[str] = re.compile(r"\$\s*\^\{\[[\d,\s\-–]+\]\}\s*\$")
+        self.latex_cite_pattern: re.Pattern[str] = re.compile(
+            r"\$\s*\^\{\[?([\d,\s\-–]+)\]?\}\s*\$"
+        )
+        self.html_cite_pattern: re.Pattern[str] = re.compile(r"<sup>\s*(\d+)\s*</sup>")
         self.normal_cite_pattern: re.Pattern[str] = re.compile(r"\[[\d,\s\-–]+\]")
 
         # ---- 目录相关 ----
@@ -623,10 +626,11 @@ class MarkdownCleaner:
         return text
 
     def remove_citations(self, text: str) -> str:
-        """移除 LaTeX 上标引用 ``$^{[1]}$`` 和普通引用 ``[1, 2]``。"""
+        """移除 LaTeX 上标引用 ``$^{[1]}$``、HTML 上标引用 ``<sup>1</sup>`` 和普通引用 ``[1, 2]``。"""
         text, c1 = self.latex_cite_pattern.subn("", text)
-        text, c2 = self.normal_cite_pattern.subn("", text)
-        self.stats.removed_citations += c1 + c2
+        text, c2 = self.html_cite_pattern.subn("", text)
+        text, c3 = self.normal_cite_pattern.subn("", text)
+        self.stats.removed_citations += c1 + c2 + c3
         return text
 
     # ===================================================================
@@ -1178,6 +1182,8 @@ class MarkdownCleaner:
         result_text = self.clean_text(text)
         if isinstance(output_path, str):
             output_path = Path(output_path)
+        if output_path.is_dir():
+            output_path = output_path / file_path.name
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(result_text)
         return output_path

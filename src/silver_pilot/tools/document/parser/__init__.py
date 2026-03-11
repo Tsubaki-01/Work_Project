@@ -1,3 +1,3 @@
-from .excel_parser import ExcelParser, ExcelPasedRow
+from .excel_parser import DRUG_CONFIG, ExcelParser, ExcelPasedRow
 
-__all__ = ["ExcelParser", "ExcelPasedRow"]
+__all__ = ["ExcelParser", "ExcelPasedRow", "DRUG_CONFIG"]

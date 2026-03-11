@@ -39,6 +39,8 @@ logger = get_channel_logger(LOG_FILE_DIR, "excel_chunker")
 class ChunkGroup:
     """
     主题分组定义：指定组名及该组包含哪些内容列。
+    分组用于将类似语义的内容列合并为一个组别。
+    用于之后milvus的标量检索。
 
     示例::
 
@@ -105,7 +107,7 @@ class ExcelChunker:
     def __init__(
         self,
         *,
-        chunk_groups: list[ChunkGroup] | None = None,
+        chunk_groups: list[ChunkGroup] | None = DRUG_INSTRUCTION_GROUPS,
         context_prefix_field: str | None = None,
         section_separator: str = "\n",
         max_chunk_length: int = MAX_CHUNK_SIZE,
