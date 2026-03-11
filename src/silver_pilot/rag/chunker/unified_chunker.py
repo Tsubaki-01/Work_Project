@@ -1,16 +1,18 @@
 """
 模块名称：unified_chunker
 功能描述：提供对外统一的 Chunker 接口。
-         支持识别传入的单一文件或文件夹，并根据文件类型（Excel 或 Markdown）
+         支持识别传入的单一文件或文件夹，并根据文件类型（Excel 或 Markdown/PDF/DOC/DOCX/HTML）
          自动调用对应的切片器（ExcelChunker 或 MarkdownChunker），
          最后将切片结果以 JSON 格式保存在指定的 output_dir 中（文件名与传入文件名相同）。
 """
 
 import json
+import tempfile
 from pathlib import Path
+from typing import Any
 
 from silver_pilot.config import config
-from silver_pilot.tools.document import ExcelParser
+from silver_pilot.tools.document import ExcelParser, MarkdownCleaner, MarkdownConverter
 from silver_pilot.utils import get_channel_logger
 
 from .chunker_base import DocumentChunk
@@ -31,12 +33,14 @@ class UnifiedChunker:
     def __init__(self) -> None:
         pass
 
-    def process(self, source_path: str | Path, output_dir: str | Path) -> None:
+    def process(self, source_path: str | Path, output_dir: str | Path, **kwargs: Any) -> None:
         """
         处理给定的单个文件或文件夹，将切片结果保存至目标文件夹。
+        支持的文件类型：Markdown/PDF/DOC/DOCX/HTML/Excel 文件。
 
         :param source_path: 要处理的文件或目录路径
         :param output_dir:  结果保存的输出目录
+        :param kwargs:  其他参数，根据文件类型传递给具体的 Chunker
         """
         source_path = Path(source_path)
         output_dir = Path(output_dir)
@@ -51,23 +55,31 @@ class UnifiedChunker:
 
         if source_path.is_dir():
             logger.info(f"检查到输入 {source_path} 是一个目录，开始遍历...")
-            self._process_directory(source_path, output_dir)
+            self._process_directory(source_path, output_dir, **kwargs)
         else:
             logger.info(f"检查到输入 {source_path} 是一个文件，开始处理...")
-            self.process_file(source_path, output_dir)
+            self.process_file(source_path, output_dir, **kwargs)
 
-    def _process_directory(self, source_dir: Path, output_dir: Path) -> None:
+    def _process_directory(self, source_dir: Path, output_dir: Path, **kwargs: Any) -> None:
         """遍历目录并处理支持的文件"""
         count = 0
         for file_path in source_dir.rglob("*"):
             if file_path.is_file():
                 # 过滤常见隐藏文件和不支持的文件格式（提前在这里拦一道可避免不必要的报错日志）
-                if file_path.suffix.lower() in [".md", ".xlsx", ".xls"]:
-                    self.process_file(file_path, output_dir)
+                if file_path.suffix.lower() in [
+                    ".md",
+                    ".pdf",
+                    ".doc",
+                    ".docx",
+                    ".html",
+                    ".xlsx",
+                    ".xls",
+                ]:
+                    self.process_file(file_path, output_dir, **kwargs)
                     count += 1
         logger.info(f"目录处理完成，共处理了 {count} 个文件。")
 
-    def process_file(self, file_path: str | Path, output_dir: str | Path) -> None:
+    def process_file(self, file_path: str | Path, output_dir: str | Path, **kwargs: Any) -> None:
         """
         处理单一文件：识别类型并调用对应的 Chunker，随后存为 JSON。
 
@@ -81,9 +93,9 @@ class UnifiedChunker:
 
         try:
             if ext in [".xlsx", ".xls"]:
-                chunks = self._process_excel(file_path)
-            elif ext == ".md":
-                chunks = self._process_markdown(file_path)
+                chunks = self._process_excel(file_path, **kwargs)
+            elif ext in [".pdf", ".doc", ".docx", ".html", ".md"]:
+                chunks = self._process_markdown(file_path, **kwargs)
             else:
                 logger.warning(f"跳过不支持的文件格式: {file_path}")
                 return
@@ -97,12 +109,12 @@ class UnifiedChunker:
         except Exception as e:
             logger.exception(f"处理文件 {file_path} 时发生错误: {e}")
 
-    def _process_excel(self, file_path: Path) -> list[DocumentChunk]:
+    def _process_excel(self, file_path: Path, **kwargs: Any) -> list[DocumentChunk]:
         """调用 ExcelParser 与 ExcelChunker 进行切片"""
         logger.debug(f"正在以 Excel 模式处理: {file_path}")
         parser = ExcelParser()
         # 这里假设未配置分组时，按默认策略全部分入一个组（ExcelChunker 支持）
-        chunker = ExcelChunker()
+        chunker = ExcelChunker(**kwargs)
 
         parsed_rows = parser.parse(file_path)
         chunks: list[DocumentChunk] = []
@@ -111,12 +123,32 @@ class UnifiedChunker:
 
         return chunks
 
-    def _process_markdown(self, file_path: Path) -> list[DocumentChunk]:
-        """调用 MarkdownChunker 进行切片"""
+    def _process_markdown(self, file_path: Path, **kwargs: Any) -> list[DocumentChunk]:
+        """调用 MarkdownChunker 进行切片，支持 HTML、PDF、DOC/DOCX 文件"""
         logger.debug(f"正在以 Markdown 模式处理: {file_path}")
-        chunker = MarkdownChunker()
-        chunks = chunker.build_from_file(file_path)
-        return chunks
+
+        converter = MarkdownConverter(**kwargs)
+
+        # 创建一个自动销毁的虚拟临时目录
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if file_path.suffix.lower() in [".pdf", ".doc", ".docx", ".html"]:
+                # 执行格式转化与清洗，将临时目录路径传给 output_dir
+                markdown_file_path: Path = converter.process(
+                    file_paths=[file_path],
+                    output_dir=temp_dir,
+                    model_version="MinerU-HTML" if file_path.suffix.lower() == ".html" else "vlm",
+                )[0]
+
+            elif file_path.suffix.lower() == ".md":
+                md_cleaner = MarkdownCleaner(**kwargs)
+                markdown_file_path = md_cleaner.clean_file(file_path, temp_dir)
+            else:
+                logger.warning(f"不支持的文件格式: {file_path}")
+                return []
+
+            chunker = MarkdownChunker(**kwargs)
+            chunks = chunker.build_from_file(markdown_file_path, source_file=str(file_path))
+            return chunks
 
     def _save_chunks_to_json(
         self, chunks: list[DocumentChunk], original_file: Path, output_dir: Path

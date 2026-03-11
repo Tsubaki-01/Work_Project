@@ -32,7 +32,10 @@ logger = get_channel_logger(LOG_FILE_DIR, "excel_parser")
 
 
 class ColumnRole(str, Enum):
-    """列角色枚举：描述一列在 RAG 流水线中扮演的角色。"""
+    """
+    列角色枚举：描述一列在 RAG 流水线中扮演的角色。
+    用于识别哪些列是元数据，哪些是主要内容，哪些是噪音列即需要跳过的列
+    """
 
     METADATA = "metadata"
     """元数据列，如 ID、名称、分类等短文本，不参与 Embedding，但附加到 chunk 作为过滤/溯源信息。"""
@@ -106,6 +109,45 @@ class ColumnConfig:
         return None
 
 
+# =============================================
+# 药品说明书的列配置
+# =============================================
+DRUG_CONFIG = ColumnConfig(
+    skip=["r3", "标题链接"],
+    metadata=[
+        "标题",
+        "编号",
+        "通用名称",
+        "商品名称",
+        "汉语拼音",
+        "批准文号",
+        "药品分类",
+        "生产企业",
+        "药品性质",
+        "规格",
+        "有效期",
+    ],
+    content=[
+        "相关疾病",
+        "性状",
+        "主要成份",
+        "适应症",
+        "不良反应",
+        "用法用量",
+        "禁忌",
+        "注意事项",
+        "孕妇及哺乳期妇女用药",
+        "儿童用药",
+        "老人用药",
+        "药物相互作用",
+        "药理毒理",
+        "药代动力学",
+        "贮藏",
+    ],
+    context_prefix_field="通用名称",
+)
+
+
 # ---------- 列分析器 ----------
 
 
@@ -168,7 +210,7 @@ class ColumnAnalyzer:
     def infer_roles(
         cls,
         df: pd.DataFrame,
-        column_config: ColumnConfig | None = None,
+        column_config: ColumnConfig | None = DRUG_CONFIG,
     ) -> dict[str, ColumnRole]:
         """
         为每列分配角色：先查配置，未命中则走自动推断。

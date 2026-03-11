@@ -212,7 +212,9 @@ class MarkdownChunker:
         )
         return chunks
 
-    def build_from_file(self, file_path: str | Path) -> list[DocumentChunk]:
+    def build_from_file(
+        self, file_path: str | Path, source_file: str | Path = ""
+    ) -> list[DocumentChunk]:
         """
         从文件读取 Markdown 文本并切片。
 
@@ -220,10 +222,11 @@ class MarkdownChunker:
         :return: DocumentChunk 列表
         """
         file_path = Path(file_path)
+        chunk_source_file = Path(source_file or file_path)
         logger.info(f"📄 开始读取文件并构建 Chunk: {file_path}")
         try:
             md_text = file_path.read_text(encoding="utf-8")
-            return self.build(md_text, source_file=str(file_path))
+            return self.build(md_text, source_file=str(chunk_source_file))
         except Exception as e:
             logger.error(f"❌ 处理文件失败: {file_path} | 错误信息: {e}")
             raise
