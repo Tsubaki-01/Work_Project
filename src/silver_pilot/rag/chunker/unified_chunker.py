@@ -1,9 +1,13 @@
 """
 模块名称：unified_chunker
 功能描述：提供对外统一的 Chunker 接口。
-         支持识别传入的单一文件或文件夹，并根据文件类型（Excel 或 Markdown/PDF/DOC/DOCX/HTML）
+         支持识别传入的单一文件或文件夹（遍历其中所有文件），
+         并根据文件类型（Excel 或 Markdown/PDF/DOC/DOCX/HTML）
          自动调用对应的切片器（ExcelChunker 或 MarkdownChunker），
          最后将切片结果以 JSON 格式保存在指定的 output_dir 中（文件名与传入文件名相同）。
+使用说明::
+        chunker = UnifiedChunker()
+        chunker.process(source_path, output_dir, **kwargs)
 """
 
 import json
@@ -77,7 +81,7 @@ class UnifiedChunker:
                 ]:
                     self.process_file(file_path, output_dir, **kwargs)
                     count += 1
-        logger.info(f"目录处理完成，共处理了 {count} 个文件。")
+        logger.info(f"目录{source_dir}处理完成，共处理了 {count} 个文件。")
 
     def process_file(self, file_path: str | Path, output_dir: str | Path, **kwargs: Any) -> None:
         """
