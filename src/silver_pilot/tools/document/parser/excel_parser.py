@@ -265,33 +265,27 @@ class ExcelPasedRow:
     表示一行 Excel 数据经解析后的结构化结果。
 
     Attributes:
-        row_index:  原始行号（从 0 开始，不含表头）
         metadata:   元数据键值对 {列名: 值}
         contents:   内容键值对 {列名: 文本内容}
         source_file: 来源文件路径
-        sheet_name:  工作表名称
     """
 
-    __slots__ = ("row_index", "metadata", "contents", "source_file", "sheet_name")
+    __slots__ = ("metadata", "contents", "source_file")
 
     def __init__(
         self,
-        row_index: int,
         metadata: dict[str, Any],
         contents: dict[str, str],
         source_file: str,
-        sheet_name: str,
     ) -> None:
-        self.row_index = row_index
         self.metadata = metadata
         self.contents = contents
         self.source_file = source_file
-        self.sheet_name = sheet_name
 
     def __repr__(self) -> str:
         meta_keys = list(self.metadata.keys())
         content_keys = list(self.contents.keys())
-        return f"ExcelPasedRow(row={self.row_index}, meta_keys={meta_keys}, content_keys={content_keys})"
+        return f"ExcelPasedRow(meta_keys={meta_keys}, content_keys={content_keys})"
 
 
 # ---------- 核心解析器 ----------
@@ -397,11 +391,9 @@ class ExcelParser:
                 continue
 
             yield ExcelPasedRow(
-                row_index=int(idx),
                 metadata=metadata,
                 contents=contents,
                 source_file=source_file,
-                sheet_name=sheet_name,
             )
 
     def get_column_analysis_report(

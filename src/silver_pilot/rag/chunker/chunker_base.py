@@ -36,22 +36,16 @@ class DocumentChunk:
     表示一条可用于 Embedding 入库的文档 chunk。
 
     Attributes:
-        chunk_id:     全局唯一 chunk 标识（由调用方或入库模块生成）
         group_name:   所属主题分组名（如 "基本信息"、"临床使用"）
         content:      chunk 的完整文本（已含上下文前缀）
         metadata:     附加的元数据（来源文件、行号、原始元数据等）
         source_file:  原始文件路径
-        sheet_name:   工作表名
-        row_index:    原始行号
     """
 
     group_name: str
     content: str
     metadata: dict
     source_file: str = ""
-    sheet_name: str = ""
-    row_index: int = -1
-    chunk_id: int | None = None
     sub_index: int = 0  # 二次分段后的段内序号
 
     @property

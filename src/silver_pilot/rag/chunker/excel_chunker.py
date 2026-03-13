@@ -169,8 +169,6 @@ class ExcelChunker:
                         content=final_content,
                         metadata=parsed_row.metadata.copy(),
                         source_file=parsed_row.source_file,
-                        sheet_name=parsed_row.sheet_name,
-                        row_index=parsed_row.row_index,
                         sub_index=sub_idx,
                     )
                 )

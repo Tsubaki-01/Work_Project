@@ -4,5 +4,6 @@
 """
 
 from . import chunker
+from .ingestor import ChunkIngestor
 
-__all__ = ["chunker"]
+__all__ = ["chunker", "ChunkIngestor"]

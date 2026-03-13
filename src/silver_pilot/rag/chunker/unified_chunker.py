@@ -168,9 +168,6 @@ class UnifiedChunker:
                     "group_name": c.group_name,
                     "metadata": c.metadata,
                     "source_file": c.source_file,
-                    "sheet_name": c.sheet_name,
-                    "row_index": c.row_index,
-                    "chunk_id": c.chunk_id,
                     "sub_index": c.sub_index,
                 }
                 for c in chunks
