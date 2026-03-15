@@ -21,11 +21,11 @@ from .models import EntityLabel, ExtractedEntity, ProcessedQuery
 # ================= 日志 =================
 logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "query_processor")
 
-# ================= Prompt 路径 =================
-PROMPT_PATH = Path(__file__).parent / "prompts" / "query_process.yaml"
+# ================= Prompt 模板 =================
+PROMPT_TEMPLATE = "query_process"
 
 # ================= 默认配置 =================
-DEFAULT_MODEL = "qwen3-max"
+DEFAULT_MODEL = config.QUERY_PROCESS_MODEL
 
 
 # ────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ class QueryProcessor:
         self,
         model: str = DEFAULT_MODEL,
         api_key: str | None = None,
-        base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        base_url: str = config.QWEN_URL["cn"],
     ) -> None:
         self.model = model
         self.client = OpenAI(
@@ -92,11 +92,11 @@ class QueryProcessor:
         Returns:
             ProcessedQuery: 包含重写、子查询、实体的结构化结果
         """
-        logger.info(f"开始处理查询 | query={user_query[:50]}...")
+        logger.info(f"开始处理查询 | query={user_query[:30]}...")
 
         # 1. 构建 Prompt
         messages = prompt_manager.build_prompt(
-            PROMPT_PATH,
+            PROMPT_TEMPLATE,
             user_query=user_query,
             image_context=image_context,
             conversation_context=conversation_context,
