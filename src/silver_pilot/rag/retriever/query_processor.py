@@ -24,7 +24,7 @@ PROMPT_TEMPLATE = "query_process"
 
 # ================= 默认配置 =================
 DEFAULT_MODEL = config.QUERY_PROCESS_MODEL
-
+DEFAULT_REGION = config.QWEN_REGION
 
 # ────────────────────────────────────────────────────────────
 # Pydantic 结构化输出 Schema（供 LLM 解析用）
@@ -63,7 +63,7 @@ class QueryProcessor:
         self,
         model: str = DEFAULT_MODEL,
         api_key: str | None = None,
-        base_url: str = config.QWEN_URL["cn"],
+        base_url: str = config.QWEN_URL[DEFAULT_REGION],
     ) -> None:
         self.model = model
         self.client = OpenAI(

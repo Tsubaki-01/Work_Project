@@ -18,6 +18,7 @@ logger = get_channel_logger(LOG_FILE_DIR, "embedder")
 # ================= 需要的配置 =================
 DASHSCOPE_API_KEY = config.DASHSCOPE_API_KEY
 QWEN_URL = config.QWEN_URL
+DEFAULT_EMBEDDER_MODE = config.EMBEDDER_MODE
 # ────────────────────────────────────────────────────────────
 # 抽象基类
 # ────────────────────────────────────────────────────────────
@@ -53,10 +54,11 @@ class QwenEmbedder(BaseEmbedder):
     所需依赖：pip install openai
     """
 
-    DEFAULT_MODEL = "text-embedding-v3"
+    DEFAULT_MODEL = config.EMBEDDER_MODEL
     DEFAULT_BATCH_SIZE = 25  # 阿里云单次最多 25 条
     DEFAULT_DIM = 1024
     QUERY_PREFIX = "Retrieve relevant passages that answer the question: "
+    DEFAULT_REGION = config.QWEN_REGION
 
     def __init__(
         self,
@@ -64,7 +66,7 @@ class QwenEmbedder(BaseEmbedder):
         model: str = DEFAULT_MODEL,
         batch_size: int = DEFAULT_BATCH_SIZE,
         dimension: int = DEFAULT_DIM,
-        region: str = "cn",
+        region: str = DEFAULT_REGION,
     ):
         try:
             from openai import OpenAI
@@ -139,7 +141,7 @@ class BGEM3Embedder(BaseEmbedder):
     模型下载：BAAI/bge-m3（自动从 HuggingFace 下载，也可指定本地路径）
     """
 
-    DEFAULT_MODEL = "BAAI/bge-m3"
+    DEFAULT_MODEL = config.EMBEDDER_LOCAL_MODEL
     DEFAULT_BATCH_SIZE = 64
     QUERY_PREFIX = "Retrieve relevant passages that answer the question: "
 
@@ -200,7 +202,7 @@ class BGEM3Embedder(BaseEmbedder):
 # ────────────────────────────────────────────────────────────
 
 
-def create_embedder(backend: str = "local", **kwargs: Any) -> BaseEmbedder:
+def create_embedder(backend: str = DEFAULT_EMBEDDER_MODE, **kwargs: Any) -> BaseEmbedder:
     """
     根据 backend 名称创建 Embedder 实例。
 
