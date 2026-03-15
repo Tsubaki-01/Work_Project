@@ -21,7 +21,7 @@ logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "entity_linker")
 DEFAULT_MODEL = config.ENTITY_LINK_MODEL
 DEFAULT_THRESHOLD = float(config.ENTITY_LINK_THRESHOLD)
 # 默认索引保存路径
-DEFAULT_INDEX_DIR = Path(config.DATA_DIR) / "entity_indices"
+DEFAULT_INDEX_DIR = Path(config.DATA_DIR) / "rag" / "entity_indices"
 
 
 class EntityLinker:
