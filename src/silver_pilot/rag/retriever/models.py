@@ -6,14 +6,14 @@
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 # ────────────────────────────────────────────────────────────
 # 实体相关
 # ────────────────────────────────────────────────────────────
 
 
-class EntityLabel(str, Enum):
+class EntityLabel(StrEnum):
     """与 Neo4j Schema 对齐的医学实体类型枚举。"""
 
     DISEASE = "Disease"

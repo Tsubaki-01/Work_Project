@@ -53,7 +53,8 @@ class PromptManager:
         """初始化 Prompt 模板管理器
 
         Args:
-            template_dir: 模板文件所在的根目录。如果未提供，默认使用当前文件同级目录下的 `templates` 文件夹。
+            template_dir: 模板文件所在的根目录。如果未提供，默认使用当前文件
+                同级目录下的 `templates` 文件夹。
         """
         self.template_dir = (
             Path(template_dir) if template_dir else Path(__file__).parent / "templates"
