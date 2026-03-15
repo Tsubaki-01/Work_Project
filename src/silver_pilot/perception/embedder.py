@@ -17,11 +17,7 @@ logger = get_channel_logger(LOG_FILE_DIR, "embedder")
 
 # ================= 需要的配置 =================
 DASHSCOPE_API_KEY = config.DASHSCOPE_API_KEY
-QWEN_URL = {
-    "cn": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "sg": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    "us": "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
-}
+QWEN_URL = config.QWEN_URL
 # ────────────────────────────────────────────────────────────
 # 抽象基类
 # ────────────────────────────────────────────────────────────

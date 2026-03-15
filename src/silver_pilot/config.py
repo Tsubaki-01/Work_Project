@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 class Config:
     def __init__(self) -> None:
+        # ============= 加载 .env 文件 =============
         # 记录加载.env文件前的环境变量
         pre_env_keys: set[str] = set(os.environ.keys())
         # 加载.env文件
@@ -30,7 +31,15 @@ class Config:
             if env_key in new_env_keys:
                 setattr(self, env_key, env_value)
 
-        # 定义项目目录
+        # ============= qwen连接 ===============
+        self.QWEN_URL: dict[str, str] = {
+            "cn": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "sg": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "us": "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
+        }
+
+        # ============= 定义项目目录 ===============
+
         self.DATA_DIR: Path = self.ROOT_DIR / "data"
         self.FILES_DIR: Path = self.ROOT_DIR / "files"
         self.WORKSPACE_DIR: Path = self.ROOT_DIR / "workspace"
@@ -38,6 +47,7 @@ class Config:
         self.TMP_DIR: Path = self.ROOT_DIR / "tmp"
         self.LOG_DIR: Path = self.ROOT_DIR / "logs"
 
+        # ============================
         self.check_dirs()
 
     def check_dirs(self) -> None:
