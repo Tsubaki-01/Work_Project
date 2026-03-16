@@ -231,7 +231,7 @@ class VectorRetriever:
                     "doc_type",
                     "group_name",
                     "source_file",
-                    "metadata",
+                    "meta",
                 ],
             )
 
@@ -260,7 +260,7 @@ class VectorRetriever:
                                 "doc_type": entity.get("doc_type", ""),
                                 "group_name": entity.get("group_name", ""),
                                 "source_file": entity.get("source_file", ""),
-                                "metadata": entity.get("metadata", {}),
+                                "metadata": entity.get("meta", {}),
                             }
                             if entity.get("doc_type", "") == "drug_manual"
                             else {
@@ -268,7 +268,7 @@ class VectorRetriever:
                                 "doc_type": entity.get("doc_type", ""),
                                 "group_name": entity.get("group_name", ""),
                                 "source_file": entity.get("source_file", ""),
-                                "section_path": entity.get("metadata", {}).get("section_path", ""),
+                                "section_path": entity.get("meta", {}).get("section_path", ""),
                             },
                         )
                     )
