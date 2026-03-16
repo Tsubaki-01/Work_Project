@@ -40,6 +40,11 @@ class BaseEmbedder(ABC):
         """单条文本编码的便捷方法。"""
         return self.encode([text])[0]
 
+    @abstractmethod
+    def encode_query(self, query: str) -> list[float]:
+        """为查询文本添加前缀并编码。"""
+        ...
+
 
 # ────────────────────────────────────────────────────────────
 # Qwen Embedding API 实现
@@ -54,7 +59,7 @@ class QwenEmbedder(BaseEmbedder):
     所需依赖：pip install openai
     """
 
-    DEFAULT_MODEL = config.EMBEDDER_MODEL
+    DEFAULT_MODEL = config.EMBEDDER_CLOUD_MODEL
     DEFAULT_BATCH_SIZE = 25  # 阿里云单次最多 25 条
     DEFAULT_DIM = 1024
     QUERY_PREFIX = "Retrieve relevant passages that answer the question: "
@@ -121,9 +126,9 @@ class QwenEmbedder(BaseEmbedder):
         logger.info(f"编码完成 | 输出向量数={len(vectors)}")
         return vectors
 
-    def encode_query(self, text: str) -> list[float]:
+    def encode_query(self, query: str) -> list[float]:
         """查询时调用，自动加 query prefix。"""
-        prefixed = self.QUERY_PREFIX + text.strip()
+        prefixed = self.QUERY_PREFIX + query.strip()
         return self.encode([prefixed])[0]
 
 
@@ -191,9 +196,9 @@ class BGEM3Embedder(BaseEmbedder):
             logger.error(f"BGE-M3 编码失败 | error={e}")
             raise
 
-    def encode_query(self, text: str) -> list[float]:
+    def encode_query(self, query: str) -> list[float]:
         """查询时调用，自动加 query prefix。"""
-        prefixed = self.QUERY_PREFIX + text.strip()
+        prefixed = self.QUERY_PREFIX + query.strip()
         return self.encode([prefixed])[0]
 
 

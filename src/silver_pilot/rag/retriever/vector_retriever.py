@@ -116,7 +116,7 @@ class VectorRetriever:
 
         try:
             # 编码查询
-            query_vector = self.embedder.encode_one(query)
+            query_vector = self.embedder.encode_query(query)
 
             # 执行检索
             results = self.qa_manager.search_vectors(
@@ -218,7 +218,7 @@ class VectorRetriever:
     ) -> list[RetrievalResult]:
         """对知识库执行单次向量检索。"""
         try:
-            query_vector = self.embedder.encode_one(query)
+            query_vector = self.embedder.encode_query(query)
 
             results = self.kb_manager.search_vectors(
                 query_vectors=[query_vector],
