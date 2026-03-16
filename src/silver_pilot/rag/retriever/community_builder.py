@@ -140,6 +140,8 @@ class CommunityBuilder:
 
         # 5. 构建反向索引
         self._communities = communities
+        # 根据社区列表构建 ID -> Community 映射与实体反向索引
+        self._build_id_to_community()
         self._build_entity_index()
 
         elapsed = time.time() - t_start
