@@ -376,7 +376,7 @@ class CommunityBuilder:
         entity_names: list[str] | None = None,
         query_embedding: list[float] | None = None,
         max_communities: int = MAX_COMMUNITIES,
-    ) -> list[Community]:
+    ) -> tuple[list[Community], list[float]]:
         """
         根据实体名称和/或 query 语义查找相关社区。
 
@@ -393,10 +393,11 @@ class CommunityBuilder:
 
         Returns:
             list[Community]: 按相关性排序的社区列表
+            list[float]: 每个社区的分数
         """
         if not self._communities:
             logger.warning("社区缓存为空，请先调用 build() 或 load_cache()")
-            return []
+            return [], []
 
         hit_scores: dict[int, float] = {}  # community_id -> score
 
@@ -435,7 +436,7 @@ class CommunityBuilder:
         ]
 
         logger.debug(f"社区检索完成 | 命中={len(results)}")
-        return results
+        return results, [hit_scores[cid] for cid in top_ids]
 
     # ──────────────────────────────────────────────────
     # 缓存持久化
