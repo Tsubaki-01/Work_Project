@@ -433,12 +433,13 @@ class CommunityBuilder:
         sorted_ids = sorted(hit_scores.keys(), key=lambda x: hit_scores[x], reverse=True)
         top_ids = sorted_ids[:max_communities]
 
-        results = [
-            self._id_to_community[cid] for cid in top_ids if cid in self._id_to_community.keys()
-        ]
+        # 过滤掉没有对应 Community 对象的 ID，保证 communities 和 scores 一一对应
+        filtered_ids = [cid for cid in top_ids if cid in self._id_to_community]
+        results = [self._id_to_community[cid] for cid in filtered_ids]
+        scores = [hit_scores[cid] for cid in filtered_ids]
 
         logger.debug(f"社区检索完成 | 命中={len(results)}")
-        return results, [hit_scores[cid] for cid in top_ids]
+        return results, scores
 
     # ──────────────────────────────────────────────────
     # 缓存持久化
