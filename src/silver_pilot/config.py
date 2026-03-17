@@ -12,6 +12,30 @@ from typing import Any
 from dotenv import load_dotenv
 
 
+def _cast_env_value(value: str) -> int | float | bool | str:
+    """
+    自动推断并转换环境变量字符串的类型，优先级：bool > int > float > str
+    """
+    # bool 判断（大小写不敏感）
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
+
+    # int 判断
+    try:
+        return int(value)
+    except ValueError:
+        pass
+
+    # float 判断
+    try:
+        return float(value)
+    except ValueError:
+        pass
+
+    # 默认返回原始字符串
+    return value
+
+
 class Config:
     def __init__(self) -> None:
         # ============= 加载 .env 文件 =============
@@ -29,7 +53,7 @@ class Config:
         # 注入所有新增的环境变量为实例属性
         for env_key, env_value in os.environ.items():
             if env_key in new_env_keys:
-                setattr(self, env_key, env_value)
+                setattr(self, env_key, _cast_env_value(env_value))
 
         # ============= qwen连接 ===============
         self.QWEN_URL: dict[str, str] = {
@@ -59,7 +83,7 @@ class Config:
     def __getattr__(self, name: str) -> Any:
         """访问未定义属性时返回环境变量"""
         if name in os.environ:
-            return os.environ[name]
+            return _cast_env_value(os.environ[name])
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
 
