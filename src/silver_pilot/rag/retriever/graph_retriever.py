@@ -14,7 +14,7 @@ from silver_pilot.dao import Neo4jManager
 from silver_pilot.utils import get_channel_logger
 
 from .community_builder import CommunityBuilder
-from .graph_models import ReasoningPath, SubgraphContext
+from .graph_models import SubgraphContext
 from .models import LinkedEntity, RetrievalResult, RetrievalSource
 from .path_reasoner import PathReasoner
 
@@ -23,7 +23,7 @@ logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "graph_retriever")
 
 
 # ================= 默认配置 =================
-DEFAULT_MAX_RESULTS_PER_ENTITY = config.GRAPH_RETRIEVER_MAX_RESULTS_PER_ENTITY
+DEFAULT_MAX_RESULTS_PER_ENTITY = int(config.GRAPH_RETRIEVER_MAX_RESULTS_PER_ENTITY)
 DEFAULT_ENABLE_COMMUNITY = config.GRAPH_RETRIEVER_ENABLE_COMMUNITY
 DEFAULT_ENABLE_REASONING = config.GRAPH_RETRIEVER_ENABLE_REASONING
 
@@ -106,7 +106,7 @@ class GraphRetriever:
         enable_reasoning: bool = DEFAULT_ENABLE_REASONING,
     ) -> None:
         self.manager = neo4j_manager or Neo4jManager()
-        self.max_per_entity = max_results_per_entity
+        self.max_per_entity: int = max_results_per_entity
         self.enable_community = enable_community
         self.enable_reasoning = enable_reasoning
 

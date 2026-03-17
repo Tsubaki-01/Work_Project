@@ -17,7 +17,7 @@ logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "reranker")
 
 # ================= 默认配置 =================
 DEFAULT_RERANK_TOP_K = config.RERANK_TOP_K or 5
-DEFAULT_RERANK_MODE = config.RERANK_MODE or "qwen"
+DEFAULT_RERANK_MODE = config.RERANK_MODE or "local"
 
 # ────────────────────────────────────────────────────────────
 # 抽象基类
@@ -164,16 +164,17 @@ class QwenReranker(BaseReranker):
             import dashscope
             from dashscope import TextReRank
 
-            dashscope.api_key = self.api_key
-
             # 构造文档列表
             documents = [r.content for r in results]
 
+            dashscope.api_key = self.api_key
             response = TextReRank.call(
                 model=self.model,
                 query=query,
                 documents=documents,
                 top_n=top_k,
+                # api_key=self.api_key,
+                # base_address=config.QWEN_URL[config.QWEN_REGION],
                 return_documents=False,
             )
 

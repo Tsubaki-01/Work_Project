@@ -241,7 +241,9 @@ class CommunityBuilder:
 
         communities: list[Community] = []
         for comm_id, nodes in community_nodes.items():
-            if len(nodes) < MIN_COMMUNITY_SIZE:
+            if MIN_COMMUNITY_SIZE <= len(nodes) <= MAX_COMMUNITY_SIZE_FOR_SUMMARY:
+                pass
+            else:
                 continue
 
             # 收集节点标签

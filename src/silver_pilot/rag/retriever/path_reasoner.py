@@ -25,8 +25,8 @@ logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "path_reasoner")
 
 # ================= 默认配置 =================
 DEFAULT_LLM_MODEL = config.PATH_REASONER_MODEL
-DEFAULT_MAX_HOPS = config.PATH_REASONER_MAX_HOPS
-DEFAULT_MAX_PATHS = config.PATH_REASONER_MAX_PATHS
+DEFAULT_MAX_HOPS = int(config.PATH_REASONER_MAX_HOPS)
+DEFAULT_MAX_PATHS = int(config.PATH_REASONER_MAX_PATHS)
 
 
 # ────────────────────────────────────────────────────────────
@@ -355,6 +355,7 @@ class PathReasoner:
         )
 
         try:
+            logger.info("开始路径解释与评分")
             response = self.client.chat.completions.parse(
                 model=self.llm_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -376,7 +377,7 @@ class PathReasoner:
             for path in paths:
                 path.natural_language = path.to_triplet_chain()
                 path.relevance_score = 0.5
-
+        logger.info(f"路径解释与评分完成 | 总路径数={len(paths)}")
         return paths
 
     # ──────────────────────────────────────────────────
