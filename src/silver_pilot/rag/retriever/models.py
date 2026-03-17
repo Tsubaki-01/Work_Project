@@ -153,3 +153,27 @@ class RetrievalResult:
     def final_score(self) -> float:
         """优先使用重排分数，否则使用原始检索分数。"""
         return self.rerank_score if self.rerank_score is not None else self.score
+
+
+# ────────────────────────────────────────────────────────────
+# 流水线最终输出
+# ────────────────────────────────────────────────────────────
+
+
+@dataclass
+class RetrievalContext:
+    """
+    RAG 检索流水线的最终输出，供生成模型使用。
+
+    包含组装好的 context 文本、溯源信息，以及流水线各阶段的中间结果（用于调试和评估）。
+    """
+
+    # 最终拼装的 context 文本，直接注入 prompt
+    context_text: str
+    # 经过重排和筛选后的检索结果列表
+    ranked_results: list[RetrievalResult] = field(default_factory=list)
+    # 流水线中间状态（用于调试、日志、RAGAS 评估）
+    processed_query: ProcessedQuery | None = None
+    linked_entities: list[LinkedEntity] = field(default_factory=list)
+    # 各路检索的原始结果数量统计
+    retrieval_stats: dict[str, int] = field(default_factory=dict)
