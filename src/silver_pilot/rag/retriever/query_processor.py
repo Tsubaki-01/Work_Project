@@ -20,7 +20,7 @@ from .models import EntityLabel, ExtractedEntity, ProcessedQuery
 logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "query_processor")
 
 # ================= Prompt 模板 =================
-PROMPT_TEMPLATE = "query_process"
+PROMPT_TEMPLATE = "rag/query_process"
 
 # ================= 默认配置 =================
 DEFAULT_MODEL = config.QUERY_PROCESS_MODEL

@@ -16,7 +16,7 @@ from .models import RetrievalResult, RetrievalSource
 logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "context_builder")
 
 # ================= Prompt 路径 =================
-COMPRESS_PROMPT_PATH = "context_compress"
+COMPRESS_PROMPT_PATH = "rag/context_compress"
 DEFAULT_LLM_MODEL = config.CONTEXT_BUILDER_MODEL
 MAX_CONTEXT_CHARS = config.MAX_CONTEXT_CHARS
 DEFAULT_REGION = config.QWEN_REGION
