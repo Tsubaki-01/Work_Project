@@ -88,6 +88,17 @@ class LinkedEntity:
         """优先返回链接后的标准名称，未链接则返回原始名称。"""
         return self.neo4j_name if self.is_linked and self.neo4j_name else self.original_name
 
+    def to_dict(self) -> dict:
+        """将 LinkedEntity 转换为字典。"""
+        return {
+            "original_name": self.original_name,
+            "label": self.label.value,
+            "neo4j_name": self.neo4j_name,
+            "neo4j_id": self.neo4j_id,
+            "similarity_score": self.similarity_score,
+            "is_linked": self.is_linked,
+        }
+
 
 # ────────────────────────────────────────────────────────────
 # 查询处理相关

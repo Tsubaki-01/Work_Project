@@ -104,8 +104,8 @@ class AgentState(TypedDict):
     """Supervisor 已执行的循环次数，达到 MAX_SUPERVISOR_LOOPS 时强制终止。"""
 
     # ── 知识层 ──
-    rag_context: dict
-    """RAGPipeline 返回的 RetrievalContext 序列化字典。"""
+    rag_context: str
+    """RAGPipeline 返回的检索上下文。"""
 
     linked_entities: list[dict]
     """实体链接阶段的结果列表。"""
