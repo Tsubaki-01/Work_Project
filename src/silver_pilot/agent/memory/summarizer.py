@@ -7,9 +7,8 @@
 
 from pathlib import Path
 
-from langchain.messages import AnyMessage
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from openai import OpenAI
 
 from silver_pilot.config import config
 from silver_pilot.utils import get_channel_logger
@@ -61,11 +60,9 @@ class ConversationSummarizer:
         self.max_turns = max_turns
         self.keep_recent = keep_recent
         self.summary_max_tokens = summary_max_tokens
-        self.client = ChatOpenAI(
-            model=llm_model,  # ty:ignore[unknown-argument]
-            api_key=api_key or config.DASHSCOPE_API_KEY,  # ty:ignore[unknown-argument]
-            base_url=config.QWEN_URL[DEFAULT_REGION],  # ty:ignore[unknown-argument]
-            temperature=0.1,
+        self.client = OpenAI(
+            api_key=api_key or config.DASHSCOPE_API_KEY,
+            base_url=config.QWEN_URL[DEFAULT_REGION],
         )
         logger.info(
             f"ConversationSummarizer 初始化完成 | max_turns={max_turns} | keep_recent={keep_recent}"
@@ -124,7 +121,7 @@ class ConversationSummarizer:
         Returns:
             str: 压缩后的摘要文本
         """
-
+        # 将消息格式化为对话文本
         conversation_text = self._format_messages(messages)
 
         prompt = (
@@ -137,17 +134,19 @@ class ConversationSummarizer:
         )
 
         try:
-            response = self.client.invoke(
-                [HumanMessage(content=prompt)],
+            response = self.client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
                 max_tokens=self.summary_max_tokens,
             )
-            return f"[对话历史摘要] {response.content}" if response.content else ""
+            return response.choices[0].message.content or ""
         except Exception as e:
             logger.error(f"摘要压缩 LLM 调用失败: {e}")
             return f"[自动摘要失败，保留最近 {self.keep_recent} 轮对话]"
 
     @staticmethod
-    def _format_messages(messages: list[AnyMessage]) -> str:
+    def _format_messages(messages: list) -> str:
         """将 LangChain Message 列表格式化为纯文本对话。"""
         lines: list[str] = []
         for msg in messages:
