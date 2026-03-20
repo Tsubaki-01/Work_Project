@@ -169,7 +169,7 @@ def create_initial_state() -> dict:
         "loop_count": 0,
         "total_turns": 0,
         "last_profile_extract_at": 0,
-        "rag_context": {},
+        "rag_context": "",
         "linked_entities": [],
         "user_profile": {},
         "hallucination_score": 0.0,
