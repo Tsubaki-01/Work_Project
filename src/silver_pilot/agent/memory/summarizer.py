@@ -8,7 +8,6 @@
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from openai import OpenAI
 
 from silver_pilot.config import config
 from silver_pilot.utils import get_channel_logger
