@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from langchain_core.messages import AIMessage
+from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
 from silver_pilot.config import config
@@ -22,7 +23,7 @@ from silver_pilot.utils import get_channel_logger
 
 from ..llm import call_llm_parse
 from ..state import AgentState
-from ..tools import ToolExecutor
+from ..tools import ToolExecutionResult, ToolExecutor
 from .helpers import build_profile_summary, extract_latest_query
 
 # ================= 日志 =================
@@ -34,6 +35,8 @@ DEVICE_LLM_MODEL: str = config.DEVICE_AGENT_MODEL
 PROMPT_TEMPLATE: str = "agent/device_parse"
 DEFAULT_TEMPERATURE = config.DEVICE_AGENT_TEMPERATURE
 
+# 用户确认的肯定回复（不区分大小写）
+CONFIRM_KEYWORDS: set[str] = {"确认", "好的", "是", "yes", "ok", "好", "执行", "可以"}
 # ────────────────────────────────────────────────────────────
 # Pydantic 结构化输出 Schema
 # ────────────────────────────────────────────────────────────
@@ -59,11 +62,10 @@ class DeviceParseOutput(BaseModel):
 _executor: ToolExecutor | None = None
 
 
-def _get_executor() -> ToolExecutor:
+def set_executor(executor: ToolExecutor) -> None:
+    """设置 ToolExecutor 单例（由 bootstrap 调用）。"""
     global _executor
-    if _executor is None:
-        _executor = ToolExecutor()
-    return _executor
+    _executor = executor
 
 
 # ────────────────────────────────────────────────────────────
@@ -99,28 +101,30 @@ def device_agent_node(state: AgentState) -> dict:
         }
 
     # ── 阶段 2 & 3: 逐个执行工具调用 ──
-    executor = _get_executor()
+    if _executor is None:
+        logger.warning("Device Agent 未初始化，走降级路径")
+        return {
+            "messages": [
+                AIMessage(
+                    content="抱歉，我没有理解您的指令。您可以试着说具体一些，比如「明天早上7点提醒我吃药」。"
+                )
+            ],
+            "tool_calls": [],
+            "tool_results": [],
+            "final_response": "抱歉，我没有理解您的指令。您可以试着说具体一些，比如「明天早上7点提醒我吃药」。",
+        }
+
     all_results: list[dict] = []
     response_parts: list[str] = []
 
     for call in parsed_calls:
-        tool_name = call["tool_name"]
-        arguments = call["arguments"]
-
-        result = executor.execute(tool_name, arguments)
+        result = _execute_with_confirmation(_executor, call["tool_name"], call["arguments"])
         all_results.append(result.to_dict())
 
-        if result.needs_confirmation:
-            # 需要用户确认的操作，将确认提示加入回复
-            confirm_msg = result.result.get("confirmation_message", "请确认是否执行此操作？")
-            response_parts.append(confirm_msg)
-        elif result.success:
-            # 成功执行，生成友好的回复
-            result_msg = result.result.get("message", f"{tool_name} 执行成功")
-            response_parts.append(f"✅ {result_msg}")
+        if result.success:
+            response_parts.append(f"✅ {result.result.get('message', '执行成功')}")
         else:
-            # 执行失败
-            response_parts.append(f"❌ {tool_name} 执行失败: {result.error}")
+            response_parts.append(f"❌ {call['tool_name']}: {result.error}")
 
     response_text = "\n".join(response_parts)
 
@@ -135,6 +139,63 @@ def device_agent_node(state: AgentState) -> dict:
         "tool_results": all_results,
         "final_response": response_text,
     }
+
+
+# ────────────────────────────────────────────────────────────
+# HITL 确认逻辑
+# ────────────────────────────────────────────────────────────
+
+
+def _execute_with_confirmation(
+    executor: ToolExecutor, tool_name: str, arguments: dict
+) -> ToolExecutionResult:
+    """
+    执行工具调用，需要确认时通过 interrupt 暂停图。
+
+    流程：
+        1. 先尝试执行（user_confirmed=False）
+        2. 如果返回 needs_confirmation → 调用 interrupt() 暂停
+        3. 图恢复后拿到用户回复 → 判断是否确认
+        4. 确认 → 带 user_confirmed=True 重新执行
+        5. 拒绝 → 返回取消结果
+    """
+    # 第一次执行（未确认）
+    result = executor.execute(tool_name, arguments, user_confirmed=False)
+
+    if not result.needs_confirmation:
+        # 低风险，直接返回执行结果
+        return result
+
+    # ── 中/高风险：interrupt 暂停，等待用户确认 ──
+    confirmation_message = result.result.get("confirmation_message", "请确认是否执行？")
+    logger.info(f"HITL 中断 | tool={tool_name} | risk={result.risk_level}")
+
+    # interrupt() 暂停图执行，将确认信息返回给调用方
+    # 调用方用 Command(resume="用户回复") 恢复后，interrupt() 返回 "用户回复"
+    user_reply = interrupt(
+        {
+            "type": "confirmation",
+            "message": confirmation_message,
+            "tool_name": tool_name,
+            "risk_level": result.risk_level,
+        }
+    )
+
+    # ── 图恢复，处理用户回复 ──
+    user_reply_str = str(user_reply).strip().lower()
+    confirmed = user_reply_str in CONFIRM_KEYWORDS
+
+    if confirmed:
+        logger.info(f"用户确认执行 | tool={tool_name}")
+        return executor.execute(tool_name, arguments, user_confirmed=True)
+    else:
+        logger.info(f"用户拒绝执行 | tool={tool_name} | reply={user_reply}")
+        return ToolExecutionResult(
+            tool_name=tool_name,
+            success=False,
+            error="用户取消操作",
+            risk_level=result.risk_level,
+        )
 
 
 # ────────────────────────────────────────────────────────────
