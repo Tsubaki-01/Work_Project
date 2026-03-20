@@ -42,13 +42,13 @@ messages:
       4. 无法识别时返回空列表
 
       ### Output Format
-      ```json
+      请仅输出一个合法的 JSON 对象，不要包含任何 Markdown 代码块标记或多余文字。
+      示例：
       {
         "tool_calls": [
           {"tool_name": "set_reminder", "arguments": {"time": "...", "message": "...", "repeat": "daily"}}
         ]
       }
-      ```
 
   - role: "user"
     content: |
