@@ -20,7 +20,7 @@ def extract_latest_query(state: AgentState) -> str:
     """
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
-            return _content_to_text(msg.content)
+            return content_to_text(msg.content)
     return ""
 
 
@@ -53,8 +53,8 @@ def build_profile_summary(profile: dict) -> str:
     return "；".join(parts)
 
 
-def _content_to_text(content: str | list) -> str:
-    """将 HumanMessage.content 的任意合法类型统一转换为纯文本。"""
+def content_to_text(content: str | list) -> str:
+    """将 AnyMessage.content 的任意合法类型统一转换为纯文本。"""
     if isinstance(content, str):
         return content
 

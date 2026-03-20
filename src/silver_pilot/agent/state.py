@@ -103,6 +103,12 @@ class AgentState(TypedDict):
     loop_count: int
     """Supervisor 已执行的循环次数，达到 MAX_SUPERVISOR_LOOPS 时强制终止。"""
 
+    total_turns: int
+    """累计对话轮次（只增不减，不受摘要压缩影响）。"""
+
+    last_profile_extract_at: int
+    """上次用户画像提取的对话轮次。"""
+
     # ── 知识层 ──
     rag_context: str
     """RAGPipeline 返回的检索上下文。"""
@@ -161,6 +167,8 @@ def create_initial_state() -> dict:
         "current_agent": "",
         "risk_level": "low",
         "loop_count": 0,
+        "total_turns": 0,
+        "last_profile_extract_at": 0,
         "rag_context": {},
         "linked_entities": [],
         "user_profile": {},
