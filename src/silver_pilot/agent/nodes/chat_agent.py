@@ -13,7 +13,6 @@
 from pathlib import Path
 
 from langchain_core.messages import AIMessage
-from openai import OpenAI
 
 from silver_pilot.config import config
 from silver_pilot.prompts import prompt_manager
