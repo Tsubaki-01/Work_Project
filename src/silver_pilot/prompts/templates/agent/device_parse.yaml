@@ -11,29 +11,29 @@ messages:
 
       ### 可用工具
       1. **set_reminder**: 设置提醒
-         - time: ISO 8601 时间格式
-         - message: 提醒内容
-         - repeat: none / daily / weekly
+         - time: str: ISO 8601 时间格式
+         - message: str: 提醒内容
+         - repeat: str: none / daily / weekly
 
       2. **control_device**: 控制智能家居设备
-         - device_id: 设备标识（如 living_room_ac, bedroom_light）
-         - action: on / off / set / adjust
-         - value: 设置值
+         - device_id: str: 设备标识（如 living_room_ac, bedroom_light）
+         - action: str: on / off / set / adjust
+         - value: str: 设置值
 
       3. **query_weather**: 查询天气
-         - location: 地点
-         - date: today / tomorrow / 具体日期
+         - location: str: 地点
+         - date: str: today / tomorrow / 具体日期
 
       4. **set_calendar**: 设置日历事件
-         - title: 事件标题
-         - start: 开始时间（ISO 8601）
-         - end: 结束时间（可选）
-         - remind_before: 提前提醒分钟数
+         - title: str: 事件标题
+         - start: str: 开始时间（ISO 8601）
+         - end: str: 结束时间（可选）
+         - remind_before: int: 提前提醒分钟数
 
       5. **send_alert**: 发送紧急通知
-         - contact: 联系人
-         - message: 通知内容
-         - urgency: normal / urgent / critical
+         - contact: str: 联系人
+         - message: str: 通知内容
+         - urgency: str: normal / urgent / critical
 
       ### Rules
       1. 当前时间: {{ current_time }}，据此计算相对时间
