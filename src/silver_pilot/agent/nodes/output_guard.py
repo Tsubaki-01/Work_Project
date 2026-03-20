@@ -120,6 +120,9 @@ def output_guard_node(state: AgentState) -> dict:
     result: dict = {
         "final_response": final_response,
         "safety_flags": safety_flags,
+        "loop_count": 0,  # 重置，为下一轮对话做准备
+        "pending_intents": [],  # 一并清空
+        "retry_count": 0,
     }
 
     # 合并摘要压缩结果
