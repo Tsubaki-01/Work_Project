@@ -29,7 +29,7 @@ logger = get_channel_logger(LOG_FILE_DIR, "chat_agent")
 
 # ================= 默认配置 =================
 CHAT_AGENT_MODEL: str = config.CHAT_AGENT_MODEL
-PROMPT_TEMPLATE: str = "rag/chat_generate"
+PROMPT_TEMPLATE: str = "agent/chat_generate"
 
 # ================= 情绪 → 兜底回复 =================
 EMOTION_FALLBACKS: dict[str, str] = {
