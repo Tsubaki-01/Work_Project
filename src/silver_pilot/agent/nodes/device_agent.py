@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 
 from langchain_core.messages import AIMessage
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from silver_pilot.config import config
