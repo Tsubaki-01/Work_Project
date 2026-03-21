@@ -20,6 +20,8 @@ messages:
       - SAD: 先共情，再温和引导，不说教
       - ANGRY: 耐心倾听，询问是否需要帮助
       - FEARFUL: 安抚情绪，提供安全感，必要时建议联系家人
+      - SURPRISED: 顺应惊讶情绪，共同探索原因
+      - DISGUSTED: 表达理解，尊重感受，适时转移话题
 
       ### 禁止
       - 不提供医疗建议（引导到 Medical Agent）
