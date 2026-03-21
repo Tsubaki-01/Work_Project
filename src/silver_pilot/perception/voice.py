@@ -32,13 +32,6 @@ logger = get_channel_logger(config.LOG_DIR / "perception", "voice")
 DEFAULT_ASR_MODEL: str = getattr(config, "PERCEPTION_VOICE_ASR_MODEL", "qwen3-asr-flash")
 DEFAULT_LANGUAGE: str = getattr(config, "PERCEPTION_VOICE_LANGUAGE", "auto")
 
-# ────────────────────────────────────────────────────────────
-# 情感标签解析
-# ────────────────────────────────────────────────────────────
-
-# SenseVoice 支持的情感标签集合
-VALID_EMOTIONS: set[str] = {"HAPPY", "SAD", "ANGRY", "NEUTRAL", "FEARFUL", "DISGUSTED", "SURPRISED"}
-
 
 # ────────────────────────────────────────────────────────────
 # 数据结构
@@ -78,7 +71,7 @@ class VoiceProcessor:
 
         processor = VoiceProcessor()
 
-        result = processor.recognize("/path/to/audio.wav")
+        result = processor.precess("/path/to/audio.wav")
 
         print(result.content)  # "我胸口好痛"
         print(result.emotion)  # "FEARFUL"
@@ -99,7 +92,7 @@ class VoiceProcessor:
     # 公开接口
     # ──────────────────────────────────────────────────
 
-    def recognize(self, file_path: str | Path) -> VoiceResult:
+    def process(self, file_path: str | Path) -> VoiceResult:
         """
         识别本地音频文件。
 
@@ -123,7 +116,7 @@ class VoiceProcessor:
             import dashscope
             from dashscope.api_entities.dashscope_response import MultiModalConversationResponse
 
-            responses = dashscope.MultiModalConversation.call(
+            response = dashscope.MultiModalConversation.call(
                 # 新加坡/美国地域和北京地域的API Key不同。获取API Key：https://help.aliyun.com/zh/model-studio/get-api-key
                 # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key = "sk-xxx",
                 api_key=self.api_key,
@@ -136,23 +129,15 @@ class VoiceProcessor:
                     "enable_itn": True,
                 },
             )
-            if responses is None:
+            if response is None:
                 logger.error("语音识别失败: response is None")
                 return VoiceResult(content="", emotion="NEUTRAL", language="zh")
 
-            if isinstance(responses, MultiModalConversationResponse):
-                # 直接访问属性
-                result = responses.output
-                return VoiceResult(
-                    content=result["output"]["choices"][0]["message"].content[0]["text"],
-                    emotion=result["output"]["choices"][0]["message"]
-                    .annotations[0]["emotion"]
-                    .upper(),
-                    language=result["output"]["choices"][0]["message"].annotations[0]["language"],
-                )
-            else:
-                logger.error("语音识别失败: response is not MultiModalConversationResponse")
-                return VoiceResult(content="", emotion="NEUTRAL", language="zh")
+            return VoiceResult(
+                content=response.output.choices[0].message.content[0]["text"],  # ty:ignore[unresolved-attribute]
+                emotion=response.output.choices[0].message.annotations[0]["emotion"].upper(),  # ty:ignore[unresolved-attribute]
+                language=response.output.choices[0].message.annotations[0]["language"],  # ty:ignore[unresolved-attribute]
+            )
 
         except ImportError:
             logger.error("dashscope 未安装，请执行: pip install dashscope")
