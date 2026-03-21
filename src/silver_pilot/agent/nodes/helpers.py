@@ -20,7 +20,7 @@ def extract_latest_query(state: AgentState) -> str:
     """
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
-            return content_to_text(msg.content)
+            return content_to_text(msg.content, state)
     return ""
 
 
@@ -53,7 +53,7 @@ def build_profile_summary(profile: dict) -> str:
     return "；".join(parts)
 
 
-def content_to_text(content: str | list) -> str:
+def content_to_text(content: str | list[dict], state: AgentState) -> str:
     """将 AnyMessage.content 的任意合法类型统一转换为纯文本。"""
     if isinstance(content, str):
         return content
@@ -63,8 +63,13 @@ def content_to_text(content: str | list) -> str:
         for item in content:
             if isinstance(item, str):
                 parts.append(item)
-            elif isinstance(item, dict) and "text" in item:
-                parts.append(item["text"])
+            elif isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item["text"])
+                if item.get("type") == "image_url":
+                    parts.append(state.get("current_image_context", ""))
+                if item.get("type") == "audio":
+                    parts.append(state.get("current_audio_context", ""))
         return " ".join(parts)
 
     return str(content)
