@@ -6,7 +6,7 @@
 
 设计说明：
     - 阶段一：文本直接透传，语音/视觉预留接口
-    - 阶段二：接入 SenseVoice ASR 和 Qwen-VL API
+    - 阶段二：接入 ASR 和 vision API
 """
 
 from pathlib import Path
@@ -45,14 +45,17 @@ def perception_router_node(state: AgentState) -> dict:
         return {"input_modality": "text", "user_emotion": "NEUTRAL"}
 
     latest_message = messages[-1]
-    content = latest_message.content if isinstance(latest_message, HumanMessage) else ""
+    if not isinstance(latest_message, HumanMessage):
+        return {}
+
+    content = latest_message.content
 
     # ── 模态检测 ──
     modality = _detect_modality(content)
 
     logger.info(f"感知路由 | 模态={modality} | 内容前30字={str(content)[:30]}...")
 
-    # ── 根据模态分发处理 ──
+    # ── 根据模态分发处理，同时重置状态 ──
     emotion = "NEUTRAL"
     image_context = ""
 
