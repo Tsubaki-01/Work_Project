@@ -82,10 +82,13 @@ class AgentState(TypedDict):
 
     # ── 感知层输出 ──
     user_emotion: str
-    """SenseVoice 输出的情感标签，如 "NEUTRAL", "SAD", "ANGRY" 等。"""
+    """ASR 输出的情感标签，如 "NEUTRAL", "SAD", "ANGRY" 等。"""
+
+    current_audio_context: str
+    """ASR 的输出结果，注入查询处理阶段。"""
 
     current_image_context: str
-    """Qwen-VL 的 OCR/图像描述结果，注入查询处理阶段。"""
+    """Qwen 的 OCR/图像描述结果，注入查询处理阶段。"""
 
     input_modality: INPUT_MODALITIES
     """当前输入的模态类型。"""
