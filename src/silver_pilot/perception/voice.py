@@ -133,6 +133,7 @@ class VoiceProcessor:
                 logger.error("语音识别失败: response is None")
                 return VoiceResult(content="", emotion="NEUTRAL", language="zh")
 
+            logger.info(f"语音识别完成: {file_path.name}")
             return VoiceResult(
                 content=response.output.choices[0].message.content[0]["text"],  # ty:ignore[unresolved-attribute]
                 emotion=response.output.choices[0].message.annotations[0]["emotion"].upper(),  # ty:ignore[unresolved-attribute]

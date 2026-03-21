@@ -123,7 +123,7 @@ class VisionProcessor:
             if response is None:
                 logger.error("视觉识别失败: response is None")
                 return ""
-
+            logger.info(f"图像文件识别完成: {file_path.name}")
             return response.output.choices[0].message.content[0]["text"]  # ty:ignore[unresolved-attribute]
 
         except Exception as e:
