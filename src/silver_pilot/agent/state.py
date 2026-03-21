@@ -46,8 +46,6 @@ INTENT_TYPES = Literal[
 
 RISK_LEVELS = Literal["low", "medium", "high", "critical"]
 
-INPUT_MODALITIES = Literal["text", "voice", "image", "multimodal"]
-
 
 # ────────────────────────────────────────────────────────────
 # 核心状态定义
@@ -90,7 +88,7 @@ class AgentState(TypedDict):
     current_image_context: str
     """Qwen 的 OCR/图像描述结果，注入查询处理阶段。"""
 
-    input_modality: INPUT_MODALITIES
+    input_modality: dict[str, bool]
     """当前输入的模态类型。"""
 
     # ── 规划层 ──

@@ -14,6 +14,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 
 from silver_pilot.config import config
+from silver_pilot.perception import VisionProcessor, VoiceProcessor, VoiceResult
 from silver_pilot.utils import get_channel_logger
 
 from ..state import AgentState
@@ -46,90 +47,109 @@ def perception_router_node(state: AgentState) -> dict:
 
     latest_message = messages[-1]
     if not isinstance(latest_message, HumanMessage):
-        return {}
+        logger.warning("消息列表最后一条不是 HumanMessage，跳过感知处理")
+        return {"input_modality": "text", "user_emotion": "NEUTRAL"}
 
     content = latest_message.content
 
     # ── 模态检测 ──
-    modality = _detect_modality(content)
-
-    logger.info(f"感知路由 | 模态={modality} | 内容前30字={str(content)[:30]}...")
-
+    logger.info("感知路由 | 开始检测模态")
+    modality_info = _get_modality_info(content)
+    logger.info(f"感知路由 | 模态数量={sum(1 for modality in modality_info.values() if modality)} ")
+    input_modality = {
+        "text": bool(modality_info["text"]),
+        "audio": bool(modality_info["audio"]),
+        "image": bool(modality_info["image"]),
+    }
     # ── 根据模态分发处理，同时重置状态 ──
     emotion = "NEUTRAL"
     image_context = ""
+    standardized_messages = ""
 
-    if modality == "text":
-        # 文本直接透传，无需额外处理
-        pass
+    if modality_info.get("text"):
+        logger.info("感知路由 | 检测到文本输入")
+        standardized_messages += " ".join(modality_info["text"])
+        logger.info(f"感知路由 | 文本输入：{modality_info['text'][:30]}...")
 
-    elif modality == "voice":
-        # 阶段二：调用 SenseVoice ASR
-        # asr_result = _process_voice(content)
-        # emotion = asr_result.get("emotion", "NEUTRAL")
-        logger.info("语音模态检测到，当前阶段按文本处理（预留 ASR 接口）")
+    if modality_info.get("audio"):
+        logger.info("感知路由 | 检测到语音输入")
+        voice_result = _process_audio(modality_info["audio"])
+        standardized_messages += "\n\n" + voice_result.content
+        emotion = voice_result.emotion
+        logger.info(
+            f"语音转写完成 | text={voice_result.content[:30]}... | "
+            f"emotion={emotion} | language={voice_result.language}"
+        )
 
-    elif modality == "image":
-        # 阶段二：调用 Qwen-VL
-        # vlm_result = _process_image(content)
-        # image_context = vlm_result.get("description", "")
-        logger.info("图像模态检测到，当前阶段按文本处理（预留 VLM 接口）")
+    if modality_info.get("image"):
+        logger.info("感知路由 | 检测到图像输入")
+        image_result = _process_image(modality_info["image"])
+        standardized_messages += "\n\n" + image_result
+        image_context = image_result
+        logger.info(f"图像识别完成 | context_len={len(image_context)}")
 
     return {
-        "input_modality": modality,
+        "messages": [HumanMessage(content=standardized_messages)],
+        "input_modality": input_modality,
         "user_emotion": emotion,
         "current_image_context": image_context,
     }
 
 
-def _detect_modality(content: str | list) -> str:
+def _get_modality_info(content: str | list[dict]) -> dict[str, list[str]]:
     """
-    检测输入内容的模态类型。
+    检测提取输入内容的模态内容。
 
     Args:
         content: 消息内容（字符串或多模态列表）
 
     Returns:
-        str: "text" / "voice" / "image" / "multimodal"
+        dict: {"text": list[str], "image": list[str], "audio": list[str]}
     """
-    # LangChain 多模态消息的 content 可能是列表
+    modality_info: dict[str, list[str]] = {
+        "text": [],
+        "image": [],
+        "audio": [],
+    }
     if isinstance(content, list):
-        has_image = any(
-            isinstance(item, dict) and item.get("type") == "image_url" for item in content
-        )
-        has_audio = any(isinstance(item, dict) and item.get("type") == "audio" for item in content)
-        if has_image and has_audio:
-            return "multimodal"
-        if has_image:
-            return "image"
-        if has_audio:
-            return "voice"
-
-    return "text"
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    modality_info["text"].append(item.get("text", ""))
+                elif item.get("type") == "image_url":
+                    modality_info["image"].append(item.get("image_url", ""))
+                elif item.get("type") == "audio":
+                    modality_info["audio"].append(item.get("audio", ""))
+    else:
+        modality_info["text"].append(content)
+    return modality_info
 
 
 # ────────────────────────────────────────────────────────────
-# 预留感知服务接口（阶段二实现）
+# 感知服务接口
 # ────────────────────────────────────────────────────────────
 
 
-def _process_voice(audio_content: str) -> dict:
+def _process_audio(audio_urls: list[str]) -> VoiceResult:
     """
-    [预留] 调用 SenseVoice ASR 处理语音输入。
+    调用 ASR 处理语音输入。
 
     Returns:
-        dict: {"text": "识别文本", "emotion": "SAD", "language": "zh"}
+        VoiceResult: 识别结果
     """
-    # TODO: 阶段二接入 DashScope SenseVoice API
-    return {"text": audio_content, "emotion": "NEUTRAL", "language": "zh"}
+    _voice_processor = VoiceProcessor()
+    # 强制使 audio 只保留一条
+    audio_content = _voice_processor.process(audio_urls[-1])
+    return audio_content
 
 
-def _process_image(image_content: str) -> dict:
+def _process_image(image_urls: str) -> str:
     """
-    [预留] 调用 Qwen-VL 处理图像输入。
+    调用 Qwen 处理图像输入。
 
     Returns:
-        dict: {"description": "药品说明书照片", "ocr_text": "阿司匹林 100mg..."}
+
     """
-    # TODO: 阶段二接入 DashScope Qwen-VL API
-    return {"description": "", "ocr_text": ""}
+    _image_processor = VisionProcessor()
+    image_content = [_image_processor.process(image_url) for image_url in image_urls]
+    return "\n\n".join(image_content)
