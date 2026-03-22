@@ -23,7 +23,7 @@ def main() -> None:
                 HumanMessage(
                     content=[
                         {"type": "text", "text": "你好"},
-                        {"type": "audio", "audio": str(audio_path)},
+                        {"type": "audio_url", "audio_url": str(audio_path)},
                     ]
                 )
             ]

@@ -174,10 +174,10 @@ def _get_modality_info(content: str | list[dict]) -> dict[str, list[str]]:
                     image_url = item.get("image_url", "")
                     if image_url:
                         modality_info["image"].append(image_url)
-                elif item.get("type") == "audio":
-                    audio = item.get("audio", "")
-                    if audio:
-                        modality_info["audio"].append(audio)
+                elif item.get("type") == "audio_url":
+                    audio_url = item.get("audio_url", "")
+                    if audio_url:
+                        modality_info["audio"].append(audio_url)
     else:
         modality_info["text"].append(content)
     return modality_info

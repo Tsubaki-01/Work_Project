@@ -147,6 +147,7 @@ def _classify_and_dispatch(state: AgentState) -> dict:
         logger.warning("无法提取用户查询，降级为闲聊")
         return {**_FALLBACK_STATE}
 
+    logger.info(f"意图分类开始 | user_query={user_query}")
     # 构建 Prompt 并调用 LLM
     messages = prompt_manager.build_prompt(
         PROMPT_TEMPLATE,

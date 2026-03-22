@@ -87,7 +87,7 @@ def content_to_text(message: AnyMessage) -> str:
                 item_type = item.get("type", "")
                 if item_type == "text":
                     result_text += item.get("text", "") + "\n"
-                elif item_type == "audio":
+                elif item_type == "audio_url":
                     ctx = message.additional_kwargs.get("audio_context", "")
                     if ctx:
                         result_text += "[语音]" + ctx + "\n"

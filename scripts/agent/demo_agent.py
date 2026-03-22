@@ -39,13 +39,23 @@ def main() -> None:
         ("医疗咨询", "阿司匹林和华法林能一起吃吗？"),
         ("日常闲聊", "今天天气真好啊"),
     ]
-
     for idx, (name, query) in enumerate(test_cases):
         print(f"\n{'─' * 60}")
         print(f"测试 {idx + 1}: {name}")
         print(f"用户: {query}")
 
         state = create_initial_state()
+        # state["messages"] = [
+        #     HumanMessage(
+        #         content=[
+        #             {"type": "text", "text": "这药怎么吃"},
+        #             {
+        #                 "type": "image_url",
+        #                 "image_url": r"\scripts\perception\test_img_2.jpg",
+        #             },
+        #         ]
+        #     )
+        # ]
         state["messages"] = [HumanMessage(content=query)]
         state["user_profile"] = profile
 
