@@ -30,7 +30,6 @@ logger = get_channel_logger(config.LOG_DIR / "perception", "voice")
 
 # ================= 默认配置 =================
 DEFAULT_ASR_MODEL: str = getattr(config, "PERCEPTION_VOICE_ASR_MODEL", "qwen3-asr-flash")
-DEFAULT_LANGUAGE: str = getattr(config, "PERCEPTION_VOICE_LANGUAGE", "auto")
 
 
 # ────────────────────────────────────────────────────────────
@@ -81,12 +80,10 @@ class VoiceProcessor:
         self,
         model: str = DEFAULT_ASR_MODEL,
         api_key: str = config.DASHSCOPE_API_KEY,
-        language: str = DEFAULT_LANGUAGE,
     ) -> None:
         self.model = model
-        self.language = language
         self.api_key = api_key or config.DASHSCOPE_API_KEY
-        logger.info(f"VoiceProcessor 初始化完成 | model={self.model} | language={self.language}")
+        logger.info(f"VoiceProcessor 初始化完成 | model={self.model}")
 
     # ──────────────────────────────────────────────────
     # 公开接口
@@ -124,7 +121,6 @@ class VoiceProcessor:
                 messages=messages,
                 result_format="message",
                 asr_options={
-                    "language": self.language,  # 可选，若已知音频的语种，可通过该参数指定待识别语种，提升识别准确率
                     "enable_itn": True,
                 },
             )
@@ -133,6 +129,7 @@ class VoiceProcessor:
                 return VoiceResult(content="", emotion="NEUTRAL", language="zh")
 
             logger.info(f"语音识别完成: {file_path.name}")
+            print(response)
             return VoiceResult(
                 content=response.output.choices[0].message.content[0]["text"],  # ty:ignore[unresolved-attribute]
                 emotion=response.output.choices[0].message.annotations[0]["emotion"].upper(),  # ty:ignore[unresolved-attribute]
