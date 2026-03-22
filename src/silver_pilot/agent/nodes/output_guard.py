@@ -123,7 +123,7 @@ def output_guard_node(state: AgentState) -> dict:
         "user_emotion": "NEUTRAL",
         "current_audio_context": "",
         "current_image_context": "",
-        "input_modality": {"text": False, "voice": False, "image": False},
+        "input_modality": {"text": False, "audio": False, "image": False},
         "pending_intents": [],
         "current_agent": "",
         "risk_level": "low",
