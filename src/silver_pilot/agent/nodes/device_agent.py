@@ -81,7 +81,7 @@ def device_agent_node(state: AgentState) -> dict:
         state: 当前 AgentState
 
     Returns:
-        dict: 包含 messages、tool_calls、tool_results、final_response 的状态更新
+        dict: 包含 messages、tool_calls、tool_results、sub_response 的状态更新
     """
     user_query = extract_latest_query(state)
     logger.info(f"Device Agent 开始处理 | query={user_query[:50]}...")
@@ -97,7 +97,7 @@ def device_agent_node(state: AgentState) -> dict:
             "messages": [AIMessage(content=response_text)],
             "tool_calls": [],
             "tool_results": [],
-            "final_response": response_text,
+            "sub_response": state.get("sub_response", []) + [response_text],
         }
 
     # ── 阶段 2 & 3: 逐个执行工具调用 ──
@@ -111,7 +111,8 @@ def device_agent_node(state: AgentState) -> dict:
             ],
             "tool_calls": [],
             "tool_results": [],
-            "final_response": "抱歉，我没有理解您的指令。您可以试着说具体一些，比如「明天早上7点提醒我吃药」。",
+            "sub_response": state.get("sub_response", [])
+            + ["抱歉，我没有理解您的指令。您可以试着说具体一些，比如「明天早上7点提醒我吃药」。"],
         }
 
     all_results: list[dict] = []
@@ -137,7 +138,7 @@ def device_agent_node(state: AgentState) -> dict:
         "messages": [AIMessage(content=response_text)],
         "tool_calls": [c for c in parsed_calls],
         "tool_results": all_results,
-        "final_response": response_text,
+        "sub_response": state.get("sub_response", []) + [response_text],
     }
 
 

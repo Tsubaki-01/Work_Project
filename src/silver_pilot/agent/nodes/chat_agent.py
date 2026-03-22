@@ -60,7 +60,7 @@ def chat_agent_node(state: AgentState) -> dict:
         state: 当前 AgentState
 
     Returns:
-        dict: 包含 messages 和 final_response 的状态更新
+        dict: 包含 messages 和 sub_response 的状态更新
     """
     user_query = extract_latest_query(state)
     user_emotion = state.get("user_emotion", "NEUTRAL")
@@ -90,5 +90,5 @@ def chat_agent_node(state: AgentState) -> dict:
 
     return {
         "messages": [AIMessage(content=answer)],
-        "final_response": answer,
+        "sub_response": state.get("sub_response", []) + [answer],
     }

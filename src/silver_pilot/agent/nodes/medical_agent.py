@@ -88,7 +88,7 @@ def medical_agent_node(state: AgentState) -> dict:
         state: 当前 AgentState
 
     Returns:
-        dict: 包含 messages、rag_context、linked_entities、 hallucination_score、final_response 的状态更新
+        dict: 包含 messages、rag_context、linked_entities、 hallucination_score、sub_response 的状态更新
     """
     user_query = extract_latest_query(state)
     logger.info(f"Medical Agent 开始处理 | query={user_query[:50]}...")
@@ -98,7 +98,13 @@ def medical_agent_node(state: AgentState) -> dict:
 
     if not retrieval_result.context_text:
         logger.warning("RAG 检索无结果，返回 Fallback")
-        return _make_result(FALLBACK_RESPONSE, "", [], 0.0)
+        return {
+            "messages": [AIMessage(content=FALLBACK_RESPONSE)],
+            "rag_context": "",
+            "linked_entities": [],
+            "hallucination_score": 0.0,
+            "sub_response": state.get("sub_response", []) + [FALLBACK_RESPONSE],
+        }
 
     rewritten_query = (
         retrieval_result.processed_query.rewritten_query
@@ -119,12 +125,13 @@ def medical_agent_node(state: AgentState) -> dict:
             f"幻觉检测未通过 | score={hallucination_score:.2f} | "
             f"threshold={HALLUCINATION_THRESHOLD}"
         )
-        return _make_result(
-            FALLBACK_RESPONSE,
-            rag_context,
-            linked_entities,
-            hallucination_score,
-        )
+        return {
+            "messages": [AIMessage(content=FALLBACK_RESPONSE)],
+            "rag_context": rag_context,
+            "linked_entities": linked_entities,
+            "hallucination_score": hallucination_score,
+            "sub_response": state.get("sub_response", []) + [FALLBACK_RESPONSE],
+        }
 
     # ── 通过：返回生成的回答 ──
     logger.info(
@@ -137,7 +144,7 @@ def medical_agent_node(state: AgentState) -> dict:
         "rag_context": rag_context,
         "linked_entities": linked_entities,
         "hallucination_score": hallucination_score,
-        "final_response": generated_answer,
+        "sub_response": state.get("sub_response", []) + [generated_answer],
     }
 
 
@@ -250,19 +257,3 @@ def _check_faithfulness(rag_context: str, generated_answer: str, state: AgentSta
     except Exception as e:
         logger.error(f"忠实度检测 LLM 调用失败: {e}，默认通过")
         return 0.0
-
-
-# ────────────────────────────────────────────────────────────
-# 辅助函数
-# ────────────────────────────────────────────────────────────
-
-
-def _make_result(response: str, rag_context: str, linked: list[dict], score: float) -> dict:
-    """统一构造 Medical Agent 的返回值。"""
-    return {
-        "messages": [AIMessage(content=response)],
-        "rag_context": rag_context,
-        "linked_entities": linked,
-        "hallucination_score": score,
-        "final_response": response,
-    }

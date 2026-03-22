@@ -73,7 +73,20 @@ class AgentState(TypedDict):
 
     # ── 对话核心 ──
     messages: Annotated[list[AnyMessage], add_messages]
-    """LangGraph 管理的消息列表，使用 add_messages 注解自动追加。"""
+    """
+    LangGraph 管理的消息列表，使用 add_messages 注解自动追加。
+    多模态输入在message.additional_kwargs中
+    additional_kwargs={
+                    "image_context": image_context,
+                    "audio_context": audio_context,
+                }
+    HumanMessage: 用户的输入
+    AIMessage: Agent的输出
+    SystemMessage: 对话摘要
+    """
+
+    current_sub_query: str
+    """当前子查询。"""
 
     conversation_summary: str
     """当消息历史过长时，由 ConversationSummarizer 生成的压缩摘要。"""
@@ -139,6 +152,9 @@ class AgentState(TypedDict):
     """当前子 Agent 的重试次数。"""
 
     # ── 输出 ──
+    sub_response: list[str]
+    """一轮对话中子 Agent 的响应输出列表。"""
+
     final_response: str
     """经过安全校验后的最终输出文本。"""
 
@@ -160,6 +176,7 @@ def create_initial_state() -> dict:
     """
     return {
         "messages": [],
+        "current_sub_query": "",
         "conversation_summary": "",
         "user_emotion": "NEUTRAL",
         "current_audio_context": "",
@@ -179,5 +196,6 @@ def create_initial_state() -> dict:
         "tool_calls": [],
         "tool_results": [],
         "retry_count": 0,
+        "sub_response": [],
         "final_response": "",
     }

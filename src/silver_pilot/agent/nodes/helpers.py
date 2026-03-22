@@ -18,6 +18,10 @@ def extract_latest_query(state: AgentState) -> str:
         - list[dict]: 多模态消息（含 text / image_url / audio 块）
         - list[str]: 多段文本消息（LangChain 允许但罕见）
     """
+    sub_query = state.get("current_sub_query", "")
+    if sub_query:
+        return sub_query
+
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
             return content_to_text(msg)
