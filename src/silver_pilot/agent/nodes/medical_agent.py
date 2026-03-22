@@ -32,6 +32,7 @@ logger = get_channel_logger(LOG_FILE_DIR, "medical_agent")
 # ================= 默认配置 =================
 GENERATION_MODEL: str = config.MEDICAL_AGENT_GENERATION_MODEL
 FAITHFULNESS_MODEL: str = config.MEDICAL_AGENT_FAITHFULNESS_MODEL
+MEDICAL_AGENT_SUMMARY_TURNS: int = config.MEDICAL_AGENT_SUMMARY_TURNS
 GENERATION_PROMPT: str = "agent/medical_generate"
 FAITHFULNESS_PROMPT: str = "agent/faithfulness_check"
 
@@ -170,7 +171,9 @@ def _retrieve(state: AgentState, user_query: str) -> RetrievalContext:
         retrieval_result = _pipeline.retrieve(
             user_query=user_query,
             image_context=state.get("current_image_context", ""),
-            conversation_context=messages_to_text(state.get("messages", [])),
+            conversation_context=messages_to_text(
+                state.get("messages", [])[-MEDICAL_AGENT_SUMMARY_TURNS:]
+            ),
         )
 
         logger.info(f"RAG 检索完成 | stats={retrieval_result.retrieval_stats}")

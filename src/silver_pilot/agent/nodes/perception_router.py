@@ -14,7 +14,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 
 from silver_pilot.config import config
-from silver_pilot.perception import VisionProcessor, VoiceProcessor, VoiceResult
+from silver_pilot.perception import AudioProcessor, AudioResult, VisionProcessor
 from silver_pilot.utils import get_channel_logger
 
 from ..state import AgentState
@@ -26,16 +26,16 @@ logger = get_channel_logger(LOG_FILE_DIR, "perception")
 # ────────────────────────────────────────────────────────────
 # 惰性初始化
 # ────────────────────────────────────────────────────────────
-_voice_processor: VoiceProcessor | None = None
+_audio_processor: AudioProcessor | None = None
 _image_processor: VisionProcessor | None = None
 
 
-def _get_voice_processor() -> VoiceProcessor:
+def _get_audio_processor() -> AudioProcessor:
     """获取或创建语音处理器（惰性初始化）。"""
-    global _voice_processor
-    if _voice_processor is None:
-        _voice_processor = VoiceProcessor()
-    return _voice_processor
+    global _audio_processor
+    if _audio_processor is None:
+        _audio_processor = AudioProcessor()
+    return _audio_processor
 
 
 def _get_image_processor() -> VisionProcessor:
@@ -71,7 +71,7 @@ def perception_router_node(state: AgentState) -> dict:
     if not messages:
         logger.warning("消息列表为空，跳过感知处理")
         return {
-            "input_modality": {"text": False, "voice": False, "image": False},
+            "input_modality": {"text": False, "audio": False, "image": False},
             "user_emotion": "NEUTRAL",
         }
 
@@ -79,7 +79,7 @@ def perception_router_node(state: AgentState) -> dict:
     if not isinstance(latest_message, HumanMessage):
         logger.warning("消息列表最后一条不是 HumanMessage，跳过感知处理")
         return {
-            "input_modality": {"text": False, "voice": False, "image": False},
+            "input_modality": {"text": False, "audio": False, "image": False},
             "user_emotion": "NEUTRAL",
         }
 
@@ -109,13 +109,13 @@ def perception_router_node(state: AgentState) -> dict:
 
     if modality_info.get("audio"):
         logger.info("感知路由 | 检测到语音输入")
-        voice_result = _process_audio(modality_info["audio"])
-        standardized_messages += "\n\n" + voice_result.content
-        emotion = voice_result.emotion
-        audio_context = voice_result.content
+        audio_result = _process_audio(modality_info["audio"])
+        standardized_messages += "\n\n" + audio_result.content
+        emotion = audio_result.emotion
+        audio_context = audio_result.content
         logger.info(
-            f"语音转写完成 | text={voice_result.content[:30]}... | "
-            f"emotion={emotion} | language={voice_result.language}"
+            f"语音转写完成 | text={audio_result.content[:30]}... | "
+            f"emotion={emotion} | language={audio_result.language}"
         )
         needs_rewrite = True
 
@@ -181,18 +181,18 @@ def _get_modality_info(content: str | list[dict]) -> dict[str, list[str]]:
 # ────────────────────────────────────────────────────────────
 
 
-def _process_audio(audio_urls: list[str]) -> VoiceResult:
+def _process_audio(audio_urls: list[str]) -> AudioResult:
     """
     调用 ASR 处理语音输入。
 
     Args:
-        audio_urls: 语音 URL 列表
+        audio_urls: 语音 URL 列表，目前只支持本地文件
 
     Returns:
-        VoiceResult: 识别结果
+        AudioResult: 识别结果
     """
     # 强制使 audio 只保留一条
-    audio_content = _get_voice_processor().process(audio_urls[-1])
+    audio_content = _get_audio_processor().process(audio_urls[-1])
     return audio_content
 
 
@@ -201,7 +201,7 @@ def _process_image(image_urls: list[str]) -> str:
     调用 Qwen 处理图像输入。
 
     Args:
-        image_urls: 图像 URL 列表
+        image_urls: 图像 URL 列表，目前只支持本地文件
 
     Returns:
         str: 图像识别结果

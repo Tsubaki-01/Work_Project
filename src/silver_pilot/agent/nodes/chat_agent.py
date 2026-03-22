@@ -1,6 +1,6 @@
 """
 模块名称：chat
-功能描述：Chat Agent 节点，负责处理日常闲聊和情感陪伴类对话。根据 SenseVoice
+功能描述：Chat Agent 节点，负责处理日常闲聊和情感陪伴类对话。根据 ASR
          输出的情感标签调整回复策略，以温和、耐心、简洁的"小银"人格回应用户。
 
 情绪应对策略：
@@ -23,7 +23,7 @@ from silver_pilot.utils import get_channel_logger
 
 from ..llm import call_llm
 from ..state import AgentState
-from .helpers import extract_latest_query
+from .helpers import extract_latest_query, messages_to_text
 
 # ================= 日志 =================
 LOG_FILE_DIR: Path = config.LOG_DIR / "agent"
@@ -31,6 +31,7 @@ logger = get_channel_logger(LOG_FILE_DIR, "chat_agent")
 
 # ================= 默认配置 =================
 CHAT_AGENT_MODEL: str = config.CHAT_AGENT_MODEL
+CHAT_AGENT_SUMMARY_TURNS: int = config.CHAT_AGENT_SUMMARY_TURNS
 PROMPT_TEMPLATE: str = "agent/chat_generate"
 
 # ================= 情绪 → 兜底回复 =================
@@ -73,7 +74,9 @@ def chat_agent_node(state: AgentState) -> dict:
         user_query=user_query,
         user_emotion=user_emotion,
         current_image_context=state.get("current_image_context", ""),
-        conversation_summary=state.get("conversation_summary", ""),
+        conversation_summary=messages_to_text(
+            state.get("messages", [])[-CHAT_AGENT_SUMMARY_TURNS:]
+        ),
     )
 
     # 调用 LLM

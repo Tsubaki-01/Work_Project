@@ -12,6 +12,8 @@ from ..state import AgentState
 def extract_latest_query(state: AgentState) -> str:
     """
     从消息列表中提取最新的用户查询文本。
+    有sub_query：子agent，直接返回sub_query
+    无sub_query：supervisor，从消息列表中提取最新的用户查询文本
 
     兼容三种 content 格式：
         - str: 纯文本消息
@@ -61,25 +63,38 @@ def content_to_text(message: AnyMessage) -> str:
     """将 AnyMessage 的任意合法类型统一转换为纯文本。"""
     content = message.content
     if isinstance(content, str):
-        return content
+        # 纯文本消息在经过percep重写后也可能在 additional_kwargs 中携带多模态上下文
+        text = content
+        extra_parts: list[str] = []
+        audio_ctx = message.additional_kwargs.get("audio_context", "")
+        if audio_ctx:
+            extra_parts.append("[语音]" + audio_ctx)
+        image_ctx = message.additional_kwargs.get("image_context", "")
+        if image_ctx:
+            extra_parts.append("[图片]" + image_ctx)
+        if extra_parts:
+            if text and not text.endswith("\n"):
+                text += "\n"
+            text += "\n".join(extra_parts)
+        return text
 
     if isinstance(content, list):
         result_text = ""
         for item in content:
             if isinstance(item, str):
-                result_text += item
+                result_text += item + "\n"
             elif isinstance(item, dict):
                 item_type = item.get("type", "")
                 if item_type == "text":
-                    result_text += item.get("text", "")
+                    result_text += item.get("text", "") + "\n"
                 elif item_type == "audio":
                     ctx = message.additional_kwargs.get("audio_context", "")
                     if ctx:
-                        result_text += "\n[语音]" + ctx
+                        result_text += "[语音]" + ctx + "\n"
                 elif item_type == "image_url":
                     ctx = message.additional_kwargs.get("image_context", "")
                     if ctx:
-                        result_text += "\n[图片]" + ctx
+                        result_text += "[图片]" + ctx + "\n"
         return result_text
 
     return str(content)
