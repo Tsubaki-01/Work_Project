@@ -118,16 +118,22 @@ def supervisor_node(state: AgentState) -> dict:
 # ────────────────────────────────────────────────────────────
 # 辅助函数
 # ────────────────────────────────────────────────────────────
+
+
 def _dispatch_next(state: AgentState) -> dict:
-    """从意图队列中取出下一个并分发。"""
+    """从意图队列中取出下一个并分发，同时将 sub_query 写入 state。"""
     next_intent, *remaining = state.get("pending_intents", [])
     agent = INTENT_TO_AGENT.get(next_intent["type"], "chat")
 
-    logger.info(f"分发意图 | type={next_intent['type']} | agent={agent} | 剩余={len(remaining)}")
+    logger.info(
+        f"分发意图 | type={next_intent['type']} | agent={agent} | "
+        f"sub_query={next_intent.get('sub_query', '')[:30]}... | 剩余={len(remaining)}"
+    )
 
     return {
         "pending_intents": remaining,
         "current_agent": agent,
+        "current_sub_query": next_intent.get("sub_query", ""),
         "loop_count": state.get("loop_count", 0) + 1,
         "retry_count": 0,
         "total_turns": state.get("total_turns", 0) + 1,
@@ -170,6 +176,7 @@ def _classify_and_dispatch(state: AgentState) -> dict:
     return {
         "pending_intents": remaining,
         "current_agent": INTENT_TO_AGENT.get(first["type"], "chat"),
+        "current_sub_query": first.get("sub_query", ""),
         "risk_level": parsed.risk_level,
         "loop_count": 1,
         "retry_count": 0,

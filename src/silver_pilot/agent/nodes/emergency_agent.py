@@ -53,7 +53,7 @@ def emergency_agent_node(state: AgentState) -> dict:
         state: 当前 AgentState
 
     Returns:
-        dict: 包含 messages、tool_results、safety_flags、risk_level、final_response 的状态更新
+        dict: 包含 messages、tool_results、safety_flags、risk_level、sub_response 的状态更新
     """
     user_query = extract_latest_query(state)
     user_emotion = state.get("user_emotion", "NEUTRAL")
@@ -83,16 +83,16 @@ def emergency_agent_node(state: AgentState) -> dict:
                 f"我已经帮您通知了{', '.join(notified_names)}，他们很快会联系您。"
             )
 
-    final_response = "\n".join(response_parts)
+    sub_response = "\n".join(response_parts)
 
     logger.warning(f"Emergency Agent 完成 | 已通知联系人数={len(alert_results)}")
 
     return {
-        "messages": [AIMessage(content=final_response)],
+        "messages": [AIMessage(content=sub_response)],
         "tool_results": alert_results,
         "safety_flags": safety_flags,
         "risk_level": "critical",
-        "final_response": final_response,
+        "sub_response": state.get("sub_response", []) + [sub_response],
     }
 
 

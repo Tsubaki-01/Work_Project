@@ -90,7 +90,7 @@ def output_guard_node(state: AgentState) -> dict:
     Returns:
         dict: 包含 final_response、safety_flags（可选 messages 和 conversation_summary）的状态更新
     """
-    final_response = state.get("final_response", "")
+    final_response = "\n".join(state.get("sub_response", []))
     safety_flags = list(state.get("safety_flags", []))
 
     logger.info(f"Output Guard 开始审查 | 回复长度={len(final_response)}")
@@ -118,8 +118,21 @@ def output_guard_node(state: AgentState) -> dict:
     result: dict = {
         "final_response": final_response,
         "safety_flags": safety_flags,
-        "loop_count": 0,  # 重置，为下一轮对话做准备
-        "pending_intents": [],  # 一并清空
+        "sub_response": [],
+        "current_sub_query": "",
+        "user_emotion": "NEUTRAL",
+        "current_audio_context": "",
+        "current_image_context": "",
+        "input_modality": {"text": False, "voice": False, "image": False},
+        "pending_intents": [],
+        "current_agent": "",
+        "risk_level": "low",
+        "loop_count": 0,
+        "rag_context": "",
+        "linked_entities": [],
+        "hallucination_score": 0.0,
+        "tool_calls": [],
+        "tool_results": [],
         "retry_count": 0,
     }
 
