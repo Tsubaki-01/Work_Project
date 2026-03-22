@@ -119,7 +119,6 @@ def perception_router_node(state: AgentState) -> dict:
     if modality_info.get("image"):
         logger.info("感知路由 | 检测到图像输入")
         image_result = _process_image(modality_info["image"])
-        standardized_messages += "\n\n" + image_result
         image_context = image_result
         logger.info(f"图像识别完成 | context_len={len(image_context)}")
 
