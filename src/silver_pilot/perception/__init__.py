@@ -8,9 +8,9 @@
     - VisionProcessor: 图像理解 + OCR 提取（Qwen API）
 """
 
+from .audio import AudioProcessor, AudioResult
 from .embedder import BaseEmbedder, create_embedder
 from .vision import VisionProcessor
-from .audio import AudioProcessor, AudioResult
 
 __all__ = [
     # Embedder
