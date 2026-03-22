@@ -84,6 +84,7 @@ def perception_router_node(state: AgentState) -> dict:
         }
 
     content = latest_message.content
+    original_id = latest_message.id
 
     # ── 模态检测 ──
     logger.info("感知路由 | 开始检测模态")
@@ -99,6 +100,7 @@ def perception_router_node(state: AgentState) -> dict:
     image_context = ""
     audio_context = ""
     standardized_messages = ""
+    needs_rewrite = False
 
     if modality_info.get("text"):
         logger.info("感知路由 | 检测到文本输入")
@@ -115,20 +117,34 @@ def perception_router_node(state: AgentState) -> dict:
             f"语音转写完成 | text={voice_result.content[:30]}... | "
             f"emotion={emotion} | language={voice_result.language}"
         )
+        needs_rewrite = True
 
     if modality_info.get("image"):
         logger.info("感知路由 | 检测到图像输入")
         image_result = _process_image(modality_info["image"])
         image_context = image_result
         logger.info(f"图像识别完成 | context_len={len(image_context)}")
+        needs_rewrite = True
 
-    return {
-        "messages": [HumanMessage(content=standardized_messages)],
+    result: dict = {
         "input_modality": input_modality,
         "user_emotion": emotion,
         "current_image_context": image_context,
         "current_audio_context": audio_context,
     }
+    if needs_rewrite:
+        result["messages"] = [
+            HumanMessage(
+                content=standardized_messages,
+                id=original_id,
+                additional_kwargs={
+                    "image_context": image_context,
+                    "audio_context": audio_context,
+                },
+            )
+        ]
+
+    return result
 
 
 def _get_modality_info(content: str | list[dict]) -> dict[str, list[str]]:
