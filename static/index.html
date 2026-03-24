@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Silver Pilot</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#FEFCF9;--bg-card:#FFFFFF;--bg-warm:#FFF7F0;--bg-input:#F8F4EF;--bg-hover:#F3EDE6;--bg-drawer:#FDFAF6;
+  --border:#EDE6DC;--border-lt:#F5F0EA;--border-focus:#D4785A;
+  --text:#2D2A26;--text-sub:#7A746C;--text-hint:#ADA69D;--text-inv:#FFFFFF;
+  --accent:#D4785A;--accent-lt:#F5DDD2;--accent-hover:#C06A4E;--accent-bg:#FEF0E8;
+  --green:#4D9E6B;--green-bg:#E8F5ED;--blue:#4A82B8;--blue-bg:#E6EFF8;
+  --yellow:#C09435;--yellow-bg:#FBF3E0;--red:#C95454;--red-bg:#FDECEC;
+  --n-sup:#8B72C8;--n-med:#4D9E6B;--n-dev:#4A82B8;--n-per:#6BA3C4;--n-grd:#9E9589;
+  --shadow-sm:0 1px 4px rgba(45,42,38,.06);--shadow-md:0 4px 16px rgba(45,42,38,.07);
+  --r-sm:10px;--r-md:14px;--r-lg:18px;--r-xl:22px;
+  --tab-h:66px;--drawer-h:370px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans SC',sans-serif;background:#F3EDE6;color:var(--text);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',monospace}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,textarea{font-family:inherit}
+
+#app{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;background:var(--bg);position:relative;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.08)}
+.page{display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+.page.active{display:flex}
+
+/* Tab Bar */
+.tab-bar{display:flex;height:var(--tab-h);background:var(--bg-card);border-top:1px solid var(--border);flex-shrink:0;z-index:50;position:relative}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-hint);transition:color .2s}
+.tab-item.active{color:var(--accent)}
+.tab-item svg{width:24px;height:24px;stroke-width:1.8}
+.tab-item.active svg{stroke-width:2.3}
+.tab-item span{font-size:11px;font-weight:600}
+.tab-dot{width:4px;height:4px;border-radius:2px;background:var(--accent);position:absolute;bottom:10px;transition:left .3s cubic-bezier(.4,0,.2,1);left:calc(16.67% - 2px)}
+
+/* Shared */
+.icon-btn{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-sub);transition:all .15s;flex-shrink:0}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text)}
+.icon-btn.sm{width:36px;height:36px;border-radius:10px}
+.icon-btn svg{width:20px;height:20px}
+.icon-btn.sm svg{width:17px;height:17px}
+.badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+/* ═════ HOME ═════ */
+.home-scroll{flex:1;overflow-y:auto;padding:0 18px 20px}
+.home-scroll::-webkit-scrollbar{width:4px}
+.home-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.home-header{padding:20px 18px 0;display:flex;align-items:center;justify-content:space-between}
+.home-greeting{font-size:14px;color:var(--text-sub)}
+.home-name{font-size:24px;font-weight:700;margin-top:2px}
+.sum-card{margin:18px 0;padding:22px 20px;border-radius:var(--r-xl);color:#fff;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--accent),#E8956D)}
+.sum-card::before{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12)}
+.sum-pills{display:flex;gap:8px;margin-top:14px;position:relative;z-index:1}
+.sum-pill{background:rgba(255,255,255,.22);border-radius:10px;padding:7px 14px;font-size:13px;backdrop-filter:blur(4px)}
+.sec-title{font-size:17px;font-weight:700;margin:20px 0 12px;display:flex;align-items:center;justify-content:space-between}
+.sec-title .more{font-size:13px;font-weight:500;color:var(--accent);cursor:pointer}
+.quick-row{display:flex;gap:10px}
+.quick-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 8px;border-radius:var(--r-lg);transition:all .2s}
+.quick-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.quick-icon{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff}
+.quick-icon svg{width:24px;height:24px}
+.quick-label{font-size:14px;font-weight:600}
+.quick-sub{font-size:11px;color:var(--text-sub);margin-top:-4px}
+.health-row{display:flex;gap:10px}
+.health-card{flex:1;background:var(--bg-card);border-radius:var(--r-lg);padding:16px;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px}
+.health-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.health-icon svg{width:20px;height:20px}
+.health-label{font-size:12px;color:var(--text-sub)}
+.health-val{font-size:20px;font-weight:700;margin-top:1px}
+.health-val small{font-size:12px;font-weight:400;color:var(--text-sub);margin-left:2px}
+.health-trend{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-top:4px;display:inline-block}
+.rem-item{display:flex;align-items:center;gap:14px;background:var(--bg-card);border-radius:var(--r-md);padding:14px 16px;margin-bottom:8px;box-shadow:var(--shadow-sm)}
+.rem-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.rem-msg{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rem-sub{font-size:12px;color:var(--text-sub);margin-top:2px}
+.rem-time{font-size:17px;font-weight:700;flex-shrink:0}
+
+/* ═════ CHAT ═════ */
+.chat-page{display:flex;flex-direction:column;flex:1;overflow:hidden;position:relative}
+
+/* Sessions panel */
+.sess-ov{position:absolute;inset:0;background:rgba(45,42,38,.2);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s}
+.sess-ov.open{opacity:1;pointer-events:auto}
+.sess-pn{position:absolute;left:0;top:0;bottom:0;width:280px;background:var(--bg);z-index:41;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:var(--shadow-md)}
+.sess-pn.open{transform:translateX(0)}
+.sess-hdr{padding:18px 16px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.sess-hdr h3{font-size:16px;font-weight:700}
+.sess-list{flex:1;overflow-y:auto;padding:8px}
+.sess-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--r-md);cursor:pointer;transition:background .15s;margin-bottom:2px}
+.sess-item:hover{background:var(--bg-hover)}
+.sess-item.active{background:var(--accent-bg)}
+.sess-item.active .sess-name{color:var(--accent);font-weight:600}
+.sess-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sess-name{font-size:14px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-date{font-size:11px;color:var(--text-hint)}
+.new-sess{margin:8px;padding:12px;border-radius:var(--r-md);background:var(--accent-bg);color:var(--accent);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.new-sess:hover{background:var(--accent-lt)}
+
+/* Demo bar */
+.demo-bar{display:flex;align-items:center;gap:6px;padding:7px 16px;background:var(--accent-bg);font-size:12px;color:var(--accent);border-bottom:1px solid var(--accent-lt);flex-shrink:0;flex-wrap:wrap}
+.demo-bar b{font-weight:700}
+.demo-btns{display:flex;gap:5px;margin-left:auto}
+.demo-btn{font-size:11px;padding:4px 10px;border-radius:7px;background:var(--accent-lt);color:var(--accent);font-weight:500;transition:all .15s;font-family:'Noto Sans SC',sans-serif}
+.demo-btn:hover{background:var(--accent);color:#fff}
+
+/* Chat header */
+.chat-hdr{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px;flex-shrink:0;background:var(--bg)}
+.chat-av{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#E8956D);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-av svg{width:16px;height:16px;color:#fff}
+.chat-title{flex:1}
+.chat-title h2{font-size:15px;font-weight:700}
+.chat-st{font-size:11px;color:var(--green);display:flex;align-items:center;gap:4px}
+.chat-st::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+/* Messages */
+.msg-area{flex:1;overflow-y:auto;padding:14px;transition:padding-bottom .35s cubic-bezier(.4,0,.2,1)}
+.msg-area.dr-open{padding-bottom:calc(var(--drawer-h) + 10px)}
+.msg-area::-webkit-scrollbar{width:4px}
+.msg-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.date-sep{text-align:center;margin:12px 0}
+.date-sep span{font-size:11px;color:var(--text-hint);background:var(--bg-warm);padding:4px 14px;border-radius:10px}
+
+.msg{display:flex;gap:8px;margin-bottom:16px;max-width:82%;animation:msgIn .3s ease both}
+.msg.user{flex-direction:row-reverse;margin-left:auto}
+.msg-av{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.msg:not(.user) .msg-av{background:linear-gradient(135deg,var(--accent),#E8956D);color:#fff}
+.msg.user .msg-av{background:var(--bg-input);color:var(--text-sub)}
+.msg-av svg{width:13px;height:13px}
+.msg-bub{padding:11px 15px;font-size:14.5px;line-height:1.7;border-radius:var(--r-lg);word-break:break-word;white-space:pre-line}
+.msg:not(.user) .msg-bub{background:var(--bg-card);border:1px solid var(--border-lt);border-bottom-left-radius:4px;box-shadow:var(--shadow-sm)}
+.msg.user .msg-bub{background:var(--accent);color:var(--text-inv);border-bottom-right-radius:4px}
+.msg-meta{display:flex;align-items:center;gap:5px;margin-top:4px;padding:0 4px;flex-wrap:wrap}
+.msg.user .msg-meta{justify-content:flex-end}
+.msg-time{font-size:11px;color:var(--text-hint)}
+.msg-src{font-size:10px;padding:2px 7px;border-radius:6px;background:var(--green-bg);color:var(--green);font-weight:500}
+.msg-img{width:170px;height:110px;border-radius:var(--r-md);background:var(--bg-input);border:1px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-hint);font-size:11px;margin-bottom:5px}
+
+.typing{display:none;align-items:center;gap:8px;margin-bottom:14px}
+.typing.show{display:flex}
+.typing-dots{display:flex;gap:4px;background:var(--bg-card);border:1px solid var(--border-lt);padding:10px 16px;border-radius:var(--r-lg);border-bottom-left-radius:4px;box-shadow:var(--shadow-sm)}
+.typing-dots span{width:6px;height:6px;border-radius:50%;background:var(--border);animation:dotB 1.2s ease infinite}
+.typing-dots span:nth-child(2){animation-delay:.15s}
+.typing-dots span:nth-child(3){animation-delay:.3s}
+
+/* HITL */
+.hitl{background:var(--bg-card);border:1.5px solid var(--yellow);border-radius:var(--r-lg);padding:14px;margin-bottom:16px;max-width:82%;box-shadow:var(--shadow-sm);animation:msgIn .3s ease both}
+.hitl-hdr{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:var(--yellow);margin-bottom:8px}
+.hitl-hdr svg{width:15px;height:15px}
+.hitl-body{font-size:14px;line-height:1.6;margin-bottom:10px}
+.hitl-code{font-size:11px;color:var(--text-sub);background:var(--bg-input);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:10px;font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-all}
+.hitl-acts{display:flex;gap:8px}
+.btn-y{padding:8px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;background:var(--green);color:#fff;transition:opacity .15s}
+.btn-y:hover{opacity:.9}
+.btn-n{padding:8px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;background:var(--bg-hover);color:var(--text-sub)}
+
+/* Input */
+.input-bar{padding:10px 14px 16px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;z-index:10}
+.input-tools{display:flex;gap:4px;margin-bottom:5px}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.input-field{flex:1;background:var(--bg-input);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:11px 16px;font-size:15px;color:var(--text);outline:none;transition:border-color .2s}
+.input-field::placeholder{color:var(--text-hint)}
+.input-field:focus{border-color:var(--accent)}
+.send-btn{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.send-btn.voice{background:var(--bg-input);color:var(--text-sub);border:1.5px solid var(--border)}
+.send-btn.voice:hover{background:var(--bg-hover);color:var(--text)}
+.send-btn.ready{background:var(--accent);color:#fff;border:none}
+.send-btn.recording{background:var(--red);color:#fff;border:none;animation:pulse 1.4s ease infinite}
+.send-btn svg{width:20px;height:20px}
+.rec-hint{text-align:center;margin-top:7px;font-size:13px;color:var(--red);font-weight:600;display:none}
+.rec-hint.show{display:block;animation:pulse 1.4s ease infinite}
+
+/* Drawer */
+.dr-tog{position:absolute;bottom:72px;right:14px;z-index:20;display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;font-size:11px;font-weight:600;color:var(--text-sub);transition:all .2s;box-shadow:var(--shadow-sm);font-family:'JetBrains Mono',monospace}
+.dr-tog:hover{border-color:var(--accent);color:var(--accent)}
+.dr-tog.has{color:var(--accent);border-color:var(--accent-lt);background:var(--accent-bg)}
+.dr-tog svg{width:13px;height:13px}
+.drawer{position:absolute;bottom:0;left:0;right:0;height:var(--drawer-h);background:var(--bg-drawer);border-top:1px solid var(--border);border-radius:var(--r-xl) var(--r-xl) 0 0;z-index:30;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:0 -4px 20px rgba(0,0,0,.04)}
+.drawer.open{transform:translateY(0)}
+.drawer-handle{display:flex;justify-content:center;padding:8px 0 4px;cursor:pointer}
+.drawer-bar{width:36px;height:4px;border-radius:2px;background:var(--border)}
+.drawer-tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.drawer-tab{padding:8px 11px;font-size:11px;font-weight:600;color:var(--text-hint);border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.drawer-tab:hover{color:var(--text-sub)}
+.drawer-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.drawer-body{flex:1;overflow-y:auto;padding:10px 12px}
+.drawer-body::-webkit-scrollbar{width:3px}
+.drawer-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Drawer content styles */
+.pipe-flow{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.pipe-node{display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:7px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;border:1px solid transparent;transition:all .3s}
+.pipe-node.active{animation:nodeAct 1.2s ease infinite}
+.pipe-node.pending{opacity:.3}
+.pipe-dot{width:6px;height:6px;border-radius:50%}
+.pipe-arr{color:var(--text-hint);font-size:12px}
+.intent-item{display:flex;align-items:center;gap:7px;padding:9px 11px;background:var(--bg-card);border-radius:var(--r-md);border-left:3px solid;margin-bottom:5px;box-shadow:var(--shadow-sm)}
+.intent-type{font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px;font-family:'JetBrains Mono',monospace}
+.intent-q{font-size:12px;flex:1}
+.intent-p{font-size:10px;color:var(--text-hint);font-family:'JetBrains Mono',monospace}
+.rag-title{font-size:10px;font-weight:600;color:var(--text-hint);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 5px;font-family:'JetBrains Mono',monospace}
+.rag-chunk{padding:7px 9px;margin-bottom:4px;background:var(--bg-card);border-radius:var(--r-sm);font-size:12px;line-height:1.6;color:var(--text-sub);border-left:3px solid;box-shadow:var(--shadow-sm)}
+.rag-chunk-m{font-size:10px;margin-top:3px;color:var(--text-hint);font-family:'JetBrains Mono',monospace;display:flex;gap:8px}
+.hal-meter{display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--bg-card);border-radius:var(--r-md);margin-top:6px;box-shadow:var(--shadow-sm)}
+.hal-bar{flex:1;height:5px;background:var(--bg-input);border-radius:3px;overflow:hidden}
+.hal-fill{height:100%;border-radius:3px;transition:width .8s ease}
+.hal-sc{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace}
+.ent-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.ent-chip{font-size:11px;padding:4px 8px;border-radius:6px;font-weight:500;display:flex;align-items:center;gap:3px}
+.ent-chip.linked{background:var(--green-bg);color:var(--green)}
+.ent-chip.unlinked{background:var(--red-bg);color:var(--red)}
+.ent-det{padding:6px 9px;background:var(--bg-card);border-radius:6px;margin-bottom:4px;font-size:11px;font-family:'JetBrains Mono',monospace;box-shadow:var(--shadow-sm)}
+.tool-card{padding:9px 11px;background:var(--bg-card);border-radius:var(--r-md);margin-bottom:5px;border:1px solid var(--border-lt);box-shadow:var(--shadow-sm)}
+.tool-nm{font-size:11px;font-weight:600;color:var(--blue);font-family:'JetBrains Mono',monospace;margin-bottom:4px}
+.tool-args{font-size:11px;color:var(--text-sub);font-family:'JetBrains Mono',monospace;background:var(--bg-input);padding:6px 8px;border-radius:5px;white-space:pre-wrap;word-break:break-all}
+.tool-risk{font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;margin-left:5px}
+.tool-risk.low{background:var(--green-bg);color:var(--green)}
+.tool-risk.medium{background:var(--yellow-bg);color:var(--yellow)}
+.tool-risk.high{background:var(--red-bg);color:var(--red)}
+
+/* ═════ PROFILE ═════ */
+.pf-scroll{flex:1;overflow-y:auto;padding:0 18px 20px}
+.pf-header{text-align:center;padding:28px 0 20px}
+.pf-avatar{width:72px;height:72px;border-radius:20px;margin:0 auto 12px;background:linear-gradient(135deg,var(--accent),#E8956D);display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;font-weight:700;box-shadow:0 4px 16px rgba(212,120,90,.25)}
+.pf-name{font-size:22px;font-weight:700}
+.pf-age{font-size:13px;color:var(--text-sub);margin-top:2px}
+.pf-sec{margin-bottom:18px}
+.pf-sec-title{font-size:15px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.pf-sec-title svg{width:17px;height:17px}
+.pf-card{background:var(--bg-card);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+.pf-row{padding:14px 16px;border-bottom:1px solid var(--border-lt)}
+.pf-row:last-child{border-bottom:none}
+.pf-row-label{font-size:12px;color:var(--text-sub);margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.pf-row-label .dot{width:6px;height:6px;border-radius:50%}
+.pf-row-val{font-size:14px;line-height:1.6;white-space:pre-line}
+.pf-link{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-lt);cursor:pointer;transition:background .15s}
+.pf-link:hover{background:var(--bg-hover)}
+.pf-link:last-child{border-bottom:none}
+.pf-link svg{width:18px;height:18px;color:var(--text-sub);flex-shrink:0}
+.pf-link .arrow{color:var(--border);margin-left:auto}
+.pf-link-label{flex:1;font-size:14px}
+.pf-link-val{font-size:13px;color:var(--text-sub)}
+
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dotB{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes nodeAct{0%,100%{opacity:1}50%{opacity:.5}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HOME -->
+<div class="page active" id="p0">
+  <div class="home-header">
+    <div><div class="home-greeting" id="greetTxt"></div><div class="home-name">王爷爷</div></div>
+    <button class="icon-btn" style="position:relative" aria-label="通知"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="badge">2</span></button>
+  </div>
+  <div class="home-scroll">
+    <div class="sum-card">
+      <div style="font-size:14px;opacity:.9;margin-bottom:6px">今日健康小结</div>
+      <div style="font-size:15px;line-height:1.8;opacity:.95">已完成 <b>3/5</b> 项用药提醒<br>下一个提醒：<b>12:00</b> 吃二甲双胍</div>
+      <div class="sum-pills"><div class="sum-pill"><span style="opacity:.75">血压</span> <b>138/85</b></div><div class="sum-pill"><span style="opacity:.75">血糖</span> <b>6.8</b></div></div>
+    </div>
+    <div class="sec-title">快捷功能</div>
+    <div class="quick-row">
+      <button class="quick-btn" style="background:var(--green-bg)" onclick="go(1)"><div class="quick-icon" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><span class="quick-label">问医疗</span><span class="quick-sub">药品/症状</span></button>
+      <button class="quick-btn" style="background:var(--blue-bg)" onclick="go(1)"><div class="quick-icon" style="background:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div><span class="quick-label">控设备</span><span class="quick-sub">灯光/空调</span></button>
+      <button class="quick-btn" style="background:var(--yellow-bg)" onclick="go(1)"><div class="quick-icon" style="background:var(--yellow)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></div><span class="quick-label">查天气</span><span class="quick-sub">今日预报</span></button>
+    </div>
+    <div class="sec-title">健康概览 <span class="more">全部 →</span></div>
+    <div class="health-row">
+      <div class="health-card"><div class="health-icon" style="background:var(--red-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><div class="health-label">血压</div><div class="health-val">138/85<small>mmHg</small></div><span class="health-trend" style="background:var(--red-bg);color:var(--red)">↑ 偏高</span></div></div>
+      <div class="health-card"><div class="health-icon" style="background:var(--green-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div><div class="health-label">血糖</div><div class="health-val">6.8<small>mmol/L</small></div><span class="health-trend" style="background:var(--green-bg);color:var(--green)">正常</span></div></div>
+    </div>
+    <div class="sec-title">今日提醒 <span class="more">管理 →</span></div>
+    <div id="remList"></div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div class="page" id="p1">
+  <div class="chat-page">
+    <div class="sess-ov" id="sOv" onclick="tSess()"></div>
+    <div class="sess-pn" id="sPn">
+      <div class="sess-hdr"><h3>对话记录</h3><button class="icon-btn sm" onclick="tSess()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+      <div class="sess-list" id="sList"></div>
+      <button class="new-sess" onclick="newSess()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 新对话</button>
+    </div>
+    <div class="demo-bar"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span><b>Silver Pilot</b> Agent Demo</span><div class="demo-btns"><button class="demo-btn" onclick="runDemo('medical')">医疗问答</button><button class="demo-btn" onclick="runDemo('compound')">复合意图</button><button class="demo-btn" onclick="runDemo('device')">设备控制</button><button class="demo-btn" onclick="runDemo('image')">图片识别</button></div></div>
+    <div class="chat-hdr">
+      <button class="icon-btn sm" onclick="tSess()" aria-label="对话列表"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      <div class="chat-av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <div class="chat-title"><h2 id="cTitle">小银 · Silver Pilot</h2><div class="chat-st">Agent 就绪</div></div>
+      <button class="icon-btn sm" onclick="clrChat()" aria-label="清空"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    </div>
+    <div class="msg-area" id="mArea">
+      <div class="date-sep"><span>今天</span></div>
+      <div id="mCtn"></div>
+      <div class="typing" id="typEl"><div class="msg-av" style="background:linear-gradient(135deg,var(--accent),#E8956D)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="typing-dots"><span></span><span></span><span></span></div></div>
+    </div>
+    <div class="input-bar">
+      <div class="input-tools">
+        <button class="icon-btn sm" onclick="runDemo('image')" aria-label="拍照"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+        <button class="icon-btn sm" onclick="runDemo('image')" aria-label="图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></button>
+      </div>
+      <div class="input-row">
+        <input type="text" class="input-field" id="iField" placeholder="输入消息，或点击麦克风说话…" onkeydown="if(event.key==='Enter')handleSend()">
+        <button class="send-btn voice" id="sBtn" onclick="handleClick()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="sSvg"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+      </div>
+      <div class="rec-hint" id="recH">正在聆听…情绪: <b id="emoTag">NEUTRAL</b></div>
+    </div>
+    <button class="dr-tog" id="drTog" onclick="tDr()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Agent 过程</button>
+    <div class="drawer" id="dr">
+      <div class="drawer-handle" onclick="tDr()"><div class="drawer-bar"></div></div>
+      <div class="drawer-tabs"><button class="drawer-tab active" data-t="pipe" onclick="dT('pipe')">Pipeline</button><button class="drawer-tab" data-t="intents" onclick="dT('intents')">意图分类</button><button class="drawer-tab" data-t="rag" onclick="dT('rag')">RAG 检索</button><button class="drawer-tab" data-t="tools" onclick="dT('tools')">工具调用</button><button class="drawer-tab" data-t="ents" onclick="dT('ents')">实体链接</button></div>
+      <div class="drawer-body" id="dBody"><div style="text-align:center;color:var(--text-hint);font-size:13px;padding:40px 0">发送消息后展示 Agent 内部过程</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div class="page" id="p2">
+  <div class="pf-scroll">
+    <div class="pf-header"><div class="pf-avatar">王</div><div class="pf-name">王爷爷</div><div class="pf-age">72岁</div></div>
+    <div class="pf-sec"><div class="pf-sec-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>健康档案</div><div class="pf-card"><div class="pf-row"><div class="pf-row-label"><span class="dot" style="background:var(--red)"></span>慢性疾病</div><div class="pf-row-val">高血压、糖尿病</div></div><div class="pf-row"><div class="pf-row-label"><span class="dot" style="background:var(--yellow)"></span>过敏史</div><div class="pf-row-val">青霉素</div></div><div class="pf-row"><div class="pf-row-label"><span class="dot" style="background:var(--green)"></span>当前用药</div><div class="pf-row-val">阿司匹林 100mg/日
+二甲双胍 500mg/次, 每日2次
+氨氯地平 5mg/日</div></div></div></div>
+    <div class="pf-sec"><div class="pf-sec-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>紧急联系人</div><div class="pf-card"><div class="pf-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><div><div class="pf-link-label">王小明（儿子）</div><div style="font-size:12px;color:var(--text-sub)">138****1234</div></div><svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div><div class="pf-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><div><div class="pf-link-label">李阿姨（邻居）</div><div style="font-size:12px;color:var(--text-sub)">139****5678</div></div><svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div></div></div>
+    <div class="pf-sec"><div class="pf-sec-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-sub)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>设置</div><div class="pf-card"><div class="pf-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/></svg><span class="pf-link-label">字体大小</span><span class="pf-link-val">大</span><svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div><div class="pf-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg><span class="pf-link-label">语音播报</span><span class="pf-link-val">已开启</span><svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div><div class="pf-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="pf-link-label">提醒通知</span><span class="pf-link-val">已开启</span><svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div></div></div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-item active" onclick="go(0)" data-i="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>首页</span></button>
+  <button class="tab-item" onclick="go(1)" data-i="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>对话</span></button>
+  <button class="tab-item" onclick="go(2)" data-i="2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></button>
+  <div class="tab-dot" id="tabDot"></div>
+</div>
+
+</div>
+
+<script>
+const REMS=[{t:'07:00',m:'吃阿司匹林',r:'每天',d:1,c:'var(--green)'},{t:'08:00',m:'测血糖',r:'每天',d:1,c:'var(--blue)'},{t:'09:30',m:'晨练散步30分钟',r:'每天',d:1,c:'var(--yellow)'},{t:'12:00',m:'吃二甲双胍',r:'每天',d:0,c:'var(--accent)'},{t:'15:00',m:'去社区医院复查',r:'不重复',d:0,c:'var(--red)'},{t:'18:00',m:'吃二甲双胍',r:'每天',d:0,c:'var(--accent)'}];
+let SS=[{id:1,nm:'阿司匹林咨询',dt:'今天',ms:[{r:'a',c:'您好！我是小银，您的健康助手。有什么可以帮您的吗？',t:'09:00'}]},{id:2,nm:'血压监测提醒',dt:'昨天',ms:[{r:'a',c:'您好！我是小银。',t:'14:00'},{r:'u',c:'帮我设个每天早上量血压的提醒',t:'14:01'},{r:'a',c:'✅ 已设置提醒：每天早上 8:00 — 测量血压',t:'14:01'}]},{id:3,nm:'糖尿病饮食咨询',dt:'3天前',ms:[{r:'a',c:'您好！我是小银。',t:'10:00'},{r:'u',c:'糖尿病人能吃西瓜吗',t:'10:02'},{r:'a',c:'少量可以，建议每次不超过200克。注意监测餐后血糖。\n\n（温馨提示：具体饮食方案请遵医嘱。）',t:'10:02',s:['知识图谱']}]}];
+let aS=1,isRec=0,drOpen=0,curDT='pipe',DD=null;
+
+function init(){
+  const h=new Date().getHours();
+  document.getElementById('greetTxt').textContent=(h<6?'夜深了':h<11?'早上好，':h<14?'中午好，':h<18?'下午好，':'晚上好，');
+  document.getElementById('remList').innerHTML=REMS.map((r,i)=>`<div class="rem-item" style="animation:msgIn .3s ease ${i*.04}s both${r.d?';opacity:.55':''}"><div class="rem-dot" style="background:${r.d?'var(--text-hint)':r.c}"></div><div style="flex:1;min-width:0"><div class="rem-msg"${r.d?' style="text-decoration:line-through"':''}>${r.m}</div><div class="rem-sub">${r.r}${r.d?' · 已完成':''}</div></div><div class="rem-time">${r.t}</div></div>`).join('');
+  rSess();loadS(aS);
+  document.getElementById('iField').addEventListener('input',updBtn);
+}
+
+function go(i){
+  [0,1,2].forEach(j=>{document.getElementById('p'+j).classList.toggle('active',j===i)});
+  document.querySelectorAll('.tab-item').forEach((t,j)=>t.classList.toggle('active',j===i));
+  document.getElementById('tabDot').style.left=`calc(${(i*2+1)/6*100}% - 2px)`;
+}
+
+function rSess(){
+  const cs=['var(--accent)','var(--blue)','var(--green)','var(--yellow)','var(--red)'];
+  document.getElementById('sList').innerHTML=SS.map((s,i)=>`<div class="sess-item${s.id===aS?' active':''}" onclick="loadS(${s.id});tSess()"><div class="sess-dot" style="background:${cs[i%cs.length]}"></div><div class="sess-name">${s.nm}</div><div class="sess-date">${s.dt}</div></div>`).join('');
+}
+function tSess(){const o=document.getElementById('sOv'),p=document.getElementById('sPn'),v=p.classList.contains('open');o.classList.toggle('open',!v);p.classList.toggle('open',!v)}
+function loadS(id){
+  aS=id;const s=SS.find(x=>x.id===id);if(!s)return;
+  document.getElementById('cTitle').textContent=s.nm;
+  document.getElementById('mCtn').innerHTML='';
+  s.ms.forEach(m=>addMsg(m.r==='u'?'user':'assistant',m.c,{time:m.t,sources:m.s,noSave:1}));
+  rSess();DD=null;updDr();document.getElementById('drTog').classList.remove('has');
+}
+function newSess(){const id=Date.now();SS.unshift({id,nm:'新对话',dt:'刚刚',ms:[{r:'a',c:'您好！我是小银，有什么可以帮您的吗？',t:now()}]});loadS(id);tSess()}
+function clrChat(){const s=SS.find(x=>x.id===aS);if(s){s.ms=[{r:'a',c:'对话已清空，开始新对话吧。',t:now()}]}loadS(aS)}
+
+function addMsg(role,c,o={}){
+  const el=document.getElementById('mCtn'),u=role==='user',t=o.time||now();
+  let src='';if(o.sources?.length)src=o.sources.map(s=>`<span class="msg-src">${s}</span>`).join('');
+  let img='';if(o.isImage)img=`<div class="msg-img"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>药瓶图片 (OCR)</div>`;
+  el.insertAdjacentHTML('beforeend',`<div class="msg${u?' user':''}"><div class="msg-av" style="${u?'background:var(--bg-input);color:var(--text-sub)':'background:linear-gradient(135deg,var(--accent),#E8956D);color:#fff'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${u?'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>':'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'}</svg></div><div class="msg-body" style="min-width:0">${img}<div class="msg-bub">${esc(c)}</div><div class="msg-meta"${u?' style="justify-content:flex-end"':''}><span class="msg-time">${t}</span>${src}</div></div></div>`);
+  scr();
+  if(!o.noSave){const s=SS.find(x=>x.id===aS);if(s){s.ms.push({r:u?'u':'a',c,t,s:o.sources});if(u&&s.nm==='新对话')s.nm=c.substring(0,12);rSess()}}
+}
+
+function showHTL(sc){
+  const tl=sc.debug.tools[0],id='h'+Date.now();
+  document.getElementById('mCtn').insertAdjacentHTML('beforeend',`<div class="hitl" id="${id}"><div class="hitl-hdr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>需要您确认 <span class="tool-risk ${tl.risk}">${tl.risk.toUpperCase()}</span></div><div class="hitl-body">${tl.confirmation_message}</div><div class="hitl-code">tool: ${tl.name}\nargs: ${JSON.stringify(tl.args,null,2)}</div><div class="hitl-acts"><button class="btn-y" onclick="resHTL('${id}',1)">确认执行</button><button class="btn-n" onclick="resHTL('${id}',0)">取消</button></div></div>`);
+  window._hSc=sc;scr();
+}
+function resHTL(id,ok){
+  const card=document.getElementById(id),sc=window._hSc;
+  card.style.borderColor=ok?'var(--green)':'var(--text-hint)';
+  card.querySelector('.hitl-acts').innerHTML=`<span style="font-size:13px;color:${ok?'var(--green)':'var(--text-sub)'}">${ok?'✅ 已确认执行':'❌ 已取消'}</span>`;
+  if(ok&&DD){DD.tools[0].needs_confirmation=false;DD.tools[0].result={status:'executed',message:'设备已执行'};}
+  setTimeout(()=>{addMsg('assistant',ok?sc.response_confirmed:sc.response_cancelled);updDr()},500);
+}
+
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}
+function now(){const d=new Date();return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+function scr(){const a=document.getElementById('mArea');requestAnimationFrame(()=>a.scrollTop=a.scrollHeight)}
+function sTyp(){document.getElementById('typEl').classList.add('show');scr()}
+function hTyp(){document.getElementById('typEl').classList.remove('show')}
+
+function handleSend(){const f=document.getElementById('iField');if(!f.value.trim())return;addMsg('user',f.value.trim());f.value='';updBtn();sTyp();setTimeout(()=>{hTyp();addMsg('assistant','我正在处理，请稍等…\n\n（点击顶部示例按钮体验完整 Agent 流程）')},1200)}
+function handleClick(){document.getElementById('iField').value.trim()?handleSend():togRec()}
+function updBtn(){const f=document.getElementById('iField'),b=document.getElementById('sBtn'),s=document.getElementById('sSvg');if(f.value.trim()){b.className='send-btn ready';s.innerHTML='<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>'}else if(!isRec){b.className='send-btn voice';s.innerHTML='<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>'}}
+function togRec(){isRec=!isRec;const b=document.getElementById('sBtn'),h=document.getElementById('recH');if(isRec){b.className='send-btn recording';h.classList.add('show');setTimeout(()=>{if(isRec){isRec=0;b.className='send-btn voice';h.classList.remove('show');document.getElementById('iField').value='我最近血压有点高，需要注意什么？';updBtn()}},3000)}else{b.className='send-btn voice';h.classList.remove('show')}}
+
+function tDr(){drOpen=!drOpen;document.getElementById('dr').classList.toggle('open',drOpen);document.getElementById('mArea').classList.toggle('dr-open',drOpen);scr()}
+function dT(t){curDT=t;document.querySelectorAll('.drawer-tab').forEach(x=>x.classList.toggle('active',x.dataset.t===t));updDr()}
+function updDr(){const el=document.getElementById('dBody');if(!DD){el.innerHTML='<div style="text-align:center;color:var(--text-hint);font-size:13px;padding:40px 0">发送消息后展示 Agent 内部过程</div>';return}({pipe:rPipe,intents:rInt,rag:rRag,tools:rTool,ents:rEnt})[curDT]?.();document.getElementById('drTog').classList.toggle('has',!!DD)}
+
+function rPipe(){const el=document.getElementById('dBody');if(!DD)return;const ns=DD.pipeline;let h='<div class="pipe-flow">';ns.forEach((n,i)=>{h+=`<div class="pipe-node ${n.status||'done'}" style="background:${n.color}12;border-color:${n.status==='active'?n.color:'transparent'}"><span class="pipe-dot" style="background:${n.color}"></span><span style="color:${n.color}">${n.name}</span>${n.status==='done'?`<span class="mono" style="color:var(--text-hint);font-size:9px">${n.time}</span>`:''}</div>`;if(i<ns.length-1)h+='<span class="pipe-arr">→</span>'});h+='</div>';const dn=ns.filter(n=>n.status==='done'),tot=dn.reduce((s,n)=>s+parseFloat(n.time),0);h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${tot<100?tot.toFixed(0)+'ms':(tot/1000).toFixed(2)+'s'}</div>`;if(DD.perception)h+=`<div style="margin-top:10px"><div class="rag-title">Perception Output</div><div class="rag-chunk" style="border-color:var(--n-per)">${esc(DD.perception.image_context)}</div></div>`;el.innerHTML=h}
+function rInt(){const el=document.getElementById('dBody');if(!DD?.intents?.length){el.innerHTML='<div style="color:var(--text-hint);font-size:13px;padding:20px 0">无意图数据</div>';return}let h=`<div class="mono" style="font-size:10px;color:var(--text-hint);margin-bottom:8px">Supervisor 识别 ${DD.intents.length} 个意图</div>`;DD.intents.forEach(i=>{h+=`<div class="intent-item" style="border-color:${i.color}"><span class="intent-type" style="background:${i.color}15;color:${i.color}">${i.type}</span><span class="intent-q">${i.query}</span><span class="intent-p">P${i.priority}</span></div>`});el.innerHTML=h}
+function rRag(){const el=document.getElementById('dBody'),r=DD?.rag;if(!r){el.innerHTML='<div style="color:var(--text-hint);font-size:13px;padding:20px 0">未触发 RAG 检索</div>';return}let h=`<div class="rag-title">Query Rewrite</div><div style="font-size:12px;padding:6px 9px;background:var(--accent-bg);border-radius:7px;color:var(--accent);margin-bottom:6px">"${r.query_rewrite}"</div>`;if(r.graph_results?.length){h+='<div class="rag-title">GraphRAG</div>';r.graph_results.forEach(c=>{const cl=c.layer==='reasoning_path'?'var(--n-sup)':'var(--n-med)';h+=`<div class="rag-chunk" style="border-color:${cl}">${esc(c.content)}<div class="rag-chunk-m"><span>${c.source}</span><span>${c.layer}</span><span>score:${c.score}</span></div></div>`})}if(r.vector_results?.length){h+='<div class="rag-title">Vector Search</div>';r.vector_results.forEach(c=>{h+=`<div class="rag-chunk" style="border-color:var(--blue)">${esc(c.content)}<div class="rag-chunk-m"><span>${c.source}</span><span>score:${c.score}</span></div></div>`})}h+=`<div class="rag-title">Faithfulness Check</div><div class="hal-meter"><span style="font-size:11px;color:var(--text-sub);width:55px">幻觉分数</span><div class="hal-bar"><div class="hal-fill" style="width:${r.hallucination_score*100}%;background:${r.hallucination_score<.3?'var(--green)':'var(--yellow)'}"></div></div><span class="hal-sc" style="color:${r.hallucination_score<.3?'var(--green)':'var(--yellow)'}">${r.hallucination_score.toFixed(2)}</span><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${r.verdict==='pass'?'var(--green-bg)':'var(--red-bg)'};color:${r.verdict==='pass'?'var(--green)':'var(--red)'};font-weight:600">${r.verdict.toUpperCase()}</span></div>`;el.innerHTML=h}
+function rTool(){const el=document.getElementById('dBody'),ts=DD?.tools;if(!ts?.length){el.innerHTML='<div style="color:var(--text-hint);font-size:13px;padding:20px 0">未触发工具调用</div>';return}el.innerHTML=ts.map(t=>`<div class="tool-card"><div class="tool-nm">${t.name}<span class="tool-risk ${t.risk}">${t.risk.toUpperCase()}</span></div><div class="tool-args">${JSON.stringify(t.args,null,2)}</div>${t.needs_confirmation?'<div style="margin-top:5px;font-size:10px;color:var(--yellow)">⏳ HITL interrupt</div>':t.result?`<div style="margin-top:5px;font-size:10px;color:var(--green);font-family:JetBrains Mono,monospace">✓ ${JSON.stringify(t.result)}</div>`:''}</div>`).join('')}
+function rEnt(){const el=document.getElementById('dBody'),es=DD?.entities;if(!es?.length){el.innerHTML='<div style="color:var(--text-hint);font-size:13px;padding:20px 0">未提取到实体</div>';return}let h='<div class="rag-title">Entity Linking</div><div class="ent-chips">';es.forEach(e=>{h+=`<div class="ent-chip ${e.linked?'linked':'unlinked'}"><span style="width:5px;height:5px;border-radius:50%;background:${e.linked?'var(--green)':'var(--red)'}"></span>${e.name}<span style="font-size:9px;opacity:.7">${e.label}</span></div>`});h+='</div>';es.forEach(e=>{h+=`<div class="ent-det"><span style="color:var(--text-sub)">"${e.name}"</span><span style="color:var(--text-hint)"> → </span><span style="color:${e.linked?'var(--green)':'var(--red)'}">${e.linked?e.neo4j_name:'NOT_LINKED'}</span><span style="color:var(--text-hint)"> score:${e.score}</span></div>`});el.innerHTML=h}
+
+const D={
+medical:{u:'阿司匹林一天吃几次？有什么副作用？',debug:{pipeline:[{name:'Perception',color:'var(--n-per)',time:'12ms'},{name:'Supervisor',color:'var(--n-sup)',time:'320ms'},{name:'Medical Agent',color:'var(--n-med)',time:'1.8s'},{name:'Output Guard',color:'var(--n-grd)',time:'45ms'}],intents:[{type:'MEDICAL_QUERY',query:'阿司匹林的用法用量',priority:1,color:'var(--n-med)'},{type:'MEDICAL_QUERY',query:'阿司匹林的副作用',priority:2,color:'var(--n-med)'}],entities:[{name:'阿司匹林',label:'Drug',linked:!0,neo4j_name:'阿司匹林',score:1.0},{name:'副作用',label:'AdverseReactions',linked:!0,neo4j_name:'不良反应',score:.92}],rag:{query_rewrite:'阿司匹林的用法用量及不良反应',graph_results:[{content:'阿司匹林用法：口服，每日1次，100mg',source:'知识图谱',layer:'local_fact',score:1.0},{content:'不良反应包括胃肠道反应、出血倾向',source:'知识图谱',layer:'local_fact',score:1.0},{content:'[推理路径] 阿司匹林→胃肠道出血←消化性溃疡',source:'推理路径',layer:'reasoning_path',score:.85}],vector_results:[{content:'阿司匹林 口服 成人一次0.3~0.6g...',source:'医学文献',score:.91}],hallucination_score:.08,verdict:'pass'},tools:[]},r:'根据医学资料：\n\n**用法用量**\n口服，每日1次，每次100mg，饭后服用 [知识图谱]\n\n**常见副作用**\n· 胃肠道反应：恶心、呕吐、腹痛\n· 出血倾向：长期服用可能增加出血风险\n· 过敏反应：皮疹（较少见）[知识图谱]\n\n注意：可能加重消化性溃疡风险 [推理路径]\n\n（温馨提示：具体用药请遵医嘱。）',s:['知识图谱','医学文献','推理路径']},
+compound:{u:'阿司匹林能和降压药一起吃吗？帮我明早7点设个吃药提醒',debug:{pipeline:[{name:'Perception',color:'var(--n-per)',time:'10ms'},{name:'Supervisor',color:'var(--n-sup)',time:'450ms'},{name:'Medical Agent',color:'var(--n-med)',time:'2.1s'},{name:'Supervisor ↩',color:'var(--n-sup)',time:'15ms'},{name:'Device Agent',color:'var(--n-dev)',time:'380ms'},{name:'Output Guard',color:'var(--n-grd)',time:'52ms'}],intents:[{type:'MEDICAL_QUERY',query:'阿司匹林与降压药的药物相互作用',priority:1,color:'var(--n-med)'},{type:'DEVICE_CONTROL',query:'设置明天早上7点吃药提醒',priority:2,color:'var(--n-dev)'}],entities:[{name:'阿司匹林',label:'Drug',linked:!0,neo4j_name:'阿司匹林',score:1.0},{name:'降压药',label:'Drug',linked:!0,neo4j_name:'降压药',score:.95}],rag:{query_rewrite:'阿司匹林与降压药的药物相互作用',graph_results:[{content:'[推理路径] 阿司匹林可能减弱部分降压药效果',source:'推理路径',layer:'reasoning_path',score:.92},{content:'药物相互作用包括与抗凝药、降压药等',source:'知识图谱',layer:'local_fact',score:1.0}],vector_results:[{content:'阿司匹林与ACEI/ARB联用可能降低降压效果...',source:'医学文献',score:.89}],hallucination_score:.12,verdict:'pass'},tools:[{name:'set_reminder',args:{time:'2024-01-16T07:00:00',message:'该吃阿司匹林了',repeat:'daily'},risk:'low',result:{status:'created',message:'已设置提醒'}}]},r:'帮您处理两件事：\n\n**阿司匹林与降压药能否同服？**\n可以，但阿司匹林可能减弱部分降压药效果 [推理路径]。建议错开30分钟服用 [医学文献]。\n\n**提醒已设置**\n明天早上 7:00 — 该吃阿司匹林了（每天）\n\n（温馨提示：具体用药请遵医嘱。）',s:['知识图谱','推理路径','医学文献']},
+device:{u:'把客厅空调关了',debug:{pipeline:[{name:'Perception',color:'var(--n-per)',time:'8ms'},{name:'Supervisor',color:'var(--n-sup)',time:'280ms'},{name:'Device Agent',color:'var(--n-dev)',time:'520ms'},{name:'Output Guard',color:'var(--n-grd)',time:'18ms'}],intents:[{type:'DEVICE_CONTROL',query:'关闭客厅空调',priority:1,color:'var(--n-dev)'}],entities:[],rag:null,tools:[{name:'control_device',args:{device_id:'living_room_ac',action:'off',value:''},risk:'medium',needs_confirmation:!0,confirmation_message:'⚠️ 中风险操作：即将关闭客厅空调，确认执行吗？'}]},response_confirmed:'✅ 客厅空调已关闭',response_cancelled:'好的，已取消操作。',s:[]},
+image:{u:'[图片] 这个药瓶上写的什么？',isImg:1,debug:{pipeline:[{name:'Perception',color:'var(--n-per)',time:'1.2s'},{name:'Supervisor',color:'var(--n-sup)',time:'350ms'},{name:'Medical Agent',color:'var(--n-med)',time:'1.6s'},{name:'Output Guard',color:'var(--n-grd)',time:'38ms'}],intents:[{type:'MEDICAL_QUERY',query:'图片中药品的用法用量',priority:1,color:'var(--n-med)'}],perception:{image_context:'药品名称: 盐酸二甲双胍片\n规格: 0.5g × 30片\n生产企业: 中美上海施贵宝'},entities:[{name:'盐酸二甲双胍片',label:'Drug',linked:!0,neo4j_name:'二甲双胍',score:.94}],rag:{query_rewrite:'盐酸二甲双胍片的用法用量',graph_results:[{content:'二甲双胍：口服，成人0.5g，每日2次，随餐服用',source:'知识图谱',layer:'local_fact',score:1.0}],vector_results:[{content:'二甲双胍 餐中或餐后服用减少胃肠道反应...',source:'医学文献',score:.93}],hallucination_score:.05,verdict:'pass'},tools:[]},r:'识别到药瓶信息：\n\n**药品信息**\n· 盐酸二甲双胍片\n· 规格：0.5g × 30片\n· 生产企业：中美上海施贵宝\n\n**用法用量**\n口服，成人0.5g，每日2次，随餐服用 [知识图谱]\n\n（温馨提示：具体用药请遵医嘱。）',s:['图片识别','知识图谱','医学文献']}};
+
+function runDemo(k){
+  go(1);const sc=D[k];if(!sc)return;
+  addMsg('user',sc.u,{isImage:sc.isImg});
+  DD=JSON.parse(JSON.stringify(sc.debug));
+  if(!drOpen)tDr();
+  const ns=DD.pipeline;ns.forEach(n=>n.status='pending');dT('pipe');
+  let i=0;(function step(){if(i>=ns.length)return;ns[i].status='active';rPipe();const c=i;setTimeout(()=>{ns[c].status='done';rPipe();i++;step()},400+Math.random()*200)})();
+  sTyp();
+  setTimeout(()=>{hTyp();if(k==='device'&&sc.debug.tools[0]?.needs_confirmation)showHTL(sc);else addMsg('assistant',sc.r,{sources:sc.s});updDr()},Math.min(ns.length*500+800,3200));
+}
+
+init();
+</script>
+<script src="/static/api-connector.js"></script>
+</body>
+</html>
