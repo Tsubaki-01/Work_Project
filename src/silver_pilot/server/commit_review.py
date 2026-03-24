@@ -11,7 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
-DEFAULT_CONTEXT_WINDOW_TURNS = 6
+
+SECTION_SUMMARY = "📝 **变更摘要**"
+SECTION_COMPATIBILITY = "🔄 **兼容性报告**"
+SECTION_CONFLICTS = "⚠️ **潜在冲突**"
+SECTION_OPTIMIZATION = "🚀 **优化建议**"
+SECTION_QUESTIONS = "❓ **需要明确的疑问**"
 
 
 @dataclass(slots=True)
@@ -171,7 +176,7 @@ conversation_summary = get_conversation_context(state.get("messages", []))
 
 **After**
 ```python
-max_turns = state.get("context_window_turns", DEFAULT_CONTEXT_WINDOW_TURNS)
+max_turns = state.get("context_window_turns", 6)
 conversation_summary = get_conversation_context(state.get("messages", []), max_turns=max_turns)
 ```"""
         )
@@ -227,19 +232,19 @@ except (ValueError, RuntimeError) as exc:
     if not questions:
         questions.append("- 当前上下文未包含业务验收标准，是否可补充关键场景与回归用例范围？")
 
-    report = f"""📝 **变更摘要**
+    report = f"""{SECTION_SUMMARY}
 本次评审覆盖以下提交：{", ".join(summary_items)}。变更主要涉及：{", ".join(changed_domains)}，共涉及 **{total_files}** 个文件（+{total_insertions}/-{total_deletions}）。
 
-🔄 **兼容性报告**
+{SECTION_COMPATIBILITY}
 {chr(10).join(compatibility_points)}
 
-⚠️ **潜在冲突**
+{SECTION_CONFLICTS}
 {chr(10).join(conflict_points)}
 
-🚀 **优化建议**
+{SECTION_OPTIMIZATION}
 {chr(10).join(optimization_blocks)}
 
-❓ **需要明确的疑问**
+{SECTION_QUESTIONS}
 {chr(10).join(questions)}
 """
     return report

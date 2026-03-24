@@ -4,7 +4,14 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from silver_pilot.server.commit_review import build_commit_review_report
+from silver_pilot.server.commit_review import (
+    SECTION_COMPATIBILITY,
+    SECTION_CONFLICTS,
+    SECTION_OPTIMIZATION,
+    SECTION_QUESTIONS,
+    SECTION_SUMMARY,
+    build_commit_review_report,
+)
 
 
 class CommitReviewReportTests(unittest.TestCase):
@@ -25,11 +32,11 @@ class CommitReviewReportTests(unittest.TestCase):
             [latest_commit],
         )
 
-        self.assertIn("📝 **变更摘要**", report)
-        self.assertIn("🔄 **兼容性报告**", report)
-        self.assertIn("⚠️ **潜在冲突**", report)
-        self.assertIn("🚀 **优化建议**", report)
-        self.assertIn("❓ **需要明确的疑问**", report)
+        self.assertIn(SECTION_SUMMARY, report)
+        self.assertIn(SECTION_COMPATIBILITY, report)
+        self.assertIn(SECTION_CONFLICTS, report)
+        self.assertIn(SECTION_OPTIMIZATION, report)
+        self.assertIn(SECTION_QUESTIONS, report)
         self.assertIn(latest_commit[:7], report)
 
     def test_invalid_commit_hash_raises(self) -> None:
