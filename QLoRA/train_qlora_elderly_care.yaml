@@ -1,0 +1,63 @@
+### ====== 模型 ======
+# Qwen2.5-7B 方案
+# model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+# template: qwen
+
+# Qwen3.5-4B 方案（取消下面两行注释，注释上面两行）
+model_name_or_path: Qwen/Qwen3.5-4B
+template: qwen3_nothink  # 不需要 thinking 输出用 nothink；需要则用 qwen3
+
+### ====== 训练方式 ======
+stage: sft
+do_train: true
+finetuning_type: lora
+
+### ====== QLoRA 量化 ======
+quantization_bit: 4
+quantization_method: bitsandbytes
+
+### ====== LoRA 参数 ======
+lora_rank: 8
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target: all
+
+### ====== 数据集 ======
+dataset: elderly_care_train
+eval_dataset: elderly_care_val
+dataset_dir: data
+cutoff_len: 2048
+preprocessing_num_workers: 8
+
+### ====== 训练超参 ======
+num_train_epochs: 4
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 8
+learning_rate: 2.0e-4
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+weight_decay: 0.01
+max_grad_norm: 1.0
+
+### ====== 精度 ======
+bf16: true
+# fp16: true     # V100/3090 请用 fp16 替代 bf16
+
+### ====== 日志与保存 ======
+output_dir: ./outputs/elderly_care_qlora
+logging_steps: 10
+save_steps: 200
+eval_steps: 200
+eval_strategy: steps
+save_total_limit: 3
+load_best_model_at_end: true
+
+### ====== 其他 ======
+plot_loss: true
+report_to: tensorboard
+overwrite_output_dir: true
+
+### ====== 可选加速 ======
+# flash_attn: fa2
+# packing: true
