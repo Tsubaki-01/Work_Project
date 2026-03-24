@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
+DEFAULT_CONTEXT_WINDOW_TURNS = 6
 
 
 @dataclass(slots=True)
@@ -165,7 +166,7 @@ conversation_summary = get_conversation_context(state.get("messages", []))
 
 **After**
 ```python
-max_turns = state.get("context_window_turns", 6)
+max_turns = state.get("context_window_turns", DEFAULT_CONTEXT_WINDOW_TURNS)
 conversation_summary = get_conversation_context(state.get("messages", []), max_turns=max_turns)
 ```"""
         )
