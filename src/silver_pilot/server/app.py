@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import subprocess
 import time
 import traceback
 from contextlib import asynccontextmanager
@@ -204,8 +203,6 @@ async def commit_review(req: CommitReviewRequest) -> CommitReviewResponse:
     try:
         report = build_commit_review_report(REPO_ROOT, req.commit_hashes)
         return CommitReviewResponse(report=report)
-    except subprocess.CalledProcessError as exc:
-        raise HTTPException(status_code=400, detail=f"commit 不存在或不可读取: {exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

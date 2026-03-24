@@ -26,13 +26,18 @@ class CommitStats:
 
 
 def _run_git(repo_root: Path, args: list[str]) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        detail = f": {stderr}" if stderr else ""
+        raise ValueError(f"git 命令执行失败{detail}") from exc
     return result.stdout.strip()
 
 
@@ -161,13 +166,13 @@ def build_commit_review_report(repo_root: Path, commit_hashes: list[str]) -> str
 
 **Before**
 ```python
-conversation_summary = get_conversation_context(state.get("messages", []))
+conversation_summary = build_context(messages)
 ```
 
 **After**
 ```python
 max_turns = state.get("context_window_turns", DEFAULT_CONTEXT_WINDOW_TURNS)
-conversation_summary = get_conversation_context(state.get("messages", []), max_turns=max_turns)
+conversation_summary = build_context(messages, max_turns=max_turns)
 ```"""
         )
     if touches_session_store_internal:
@@ -176,13 +181,12 @@ conversation_summary = get_conversation_context(state.get("messages", []), max_t
 
 **Before**
 ```python
-store._sessions[session_id] = session
-store._messages[session_id] = []
+store._internal_cache[session_id] = payload
 ```
 
 **After**
 ```python
-store.create(name="新对话", user_id="default_user")
+store.create(payload)
 ```"""
         )
     if not optimization_blocks:
