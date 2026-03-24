@@ -166,13 +166,13 @@ def build_commit_review_report(repo_root: Path, commit_hashes: list[str]) -> str
 
 **Before**
 ```python
-conversation_summary = build_context(messages)
+conversation_summary = get_conversation_context(state.get("messages", []))
 ```
 
 **After**
 ```python
 max_turns = state.get("context_window_turns", DEFAULT_CONTEXT_WINDOW_TURNS)
-conversation_summary = build_context(messages, max_turns=max_turns)
+conversation_summary = get_conversation_context(state.get("messages", []), max_turns=max_turns)
 ```"""
         )
     if touches_session_store_internal:
@@ -181,32 +181,37 @@ conversation_summary = build_context(messages, max_turns=max_turns)
 
 **Before**
 ```python
-store._internal_cache[session_id] = payload
+if not _store.get(session_id):
+    _store._sessions[session_id] = SessionMeta(session_id=session_id, name="新对话")
+    _store._messages[session_id] = []
 ```
 
 **After**
 ```python
-store.create(payload)
+if not _store.get(session_id):
+    _store.create(name="新对话", user_id="default_user")
 ```"""
         )
     if not optimization_blocks:
         optimization_blocks.append(
-            """1. 对重复条件判断进行提取，减少分支重复并提升可读性。
+            """1. 可统一错误映射入口，减少重复异常处理分支并提升可维护性。
 
 **Before**
 ```python
-if cond_a and cond_b:
-    do_x()
-if cond_a and cond_b:
-    do_y()
+try:
+    do_work()
+except ValueError as exc:
+    raise HTTPException(status_code=400, detail=str(exc)) from exc
+except RuntimeError as exc:
+    raise HTTPException(status_code=400, detail=str(exc)) from exc
 ```
 
 **After**
 ```python
-is_valid = cond_a and cond_b
-if is_valid:
-    do_x()
-    do_y()
+try:
+    do_work()
+except (ValueError, RuntimeError) as exc:
+    raise HTTPException(status_code=400, detail=str(exc)) from exc
 ```"""
         )
 
