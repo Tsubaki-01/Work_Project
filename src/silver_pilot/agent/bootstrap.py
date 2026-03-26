@@ -35,6 +35,7 @@ def initialize_agent(
     *,
     checkpointer: object | None = None,
     skip_rag: bool = False,
+    profile_manager: UserProfileManager | None = None,
 ) -> CompiledStateGraph:
     """
     Agent 系统统一启动入口。
@@ -42,7 +43,8 @@ def initialize_agent(
     Args:
         checkpointer: LangGraph Checkpointer。为 None 时用 MemorySaver（内存）。
         skip_rag: 是否跳过 RAGPipeline 初始化。
-                  开发调试时可设为 True，medical_agent 会走空上下文降级。
+        profile_manager: 外部传入的 UserProfileManager 实例。
+                        为 None 时内部创建（使用 Redis 或 SQLite，取决于配置）。
 
     Returns:
         编译后的 LangGraph 图实例
@@ -68,8 +70,12 @@ def initialize_agent(
 
     # ── 2. RAGPipeline 外的组件 ──
     logger.info("[2/3] 初始化 RAGPipeline 外的组件...")
-    profile_manager = UserProfileManager()
+
+    # UserProfileManager: 优先使用外部传入（如 RedisStore 包装后的实例），否则内部创建
+    if profile_manager is None:
+        profile_manager = UserProfileManager()
     set_profile_manager(profile_manager)
+
     executor = ToolExecutor()
     set_executor(executor)
     summarizer = ConversationSummarizer()
