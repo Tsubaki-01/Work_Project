@@ -14,6 +14,8 @@
 import re
 from pathlib import Path
 
+from langchain_core.messages import AIMessage
+
 from silver_pilot.config import config
 from silver_pilot.utils import get_channel_logger
 
@@ -116,6 +118,12 @@ def output_guard_node(state: AgentState) -> dict:
     logger.info(f"Output Guard 审查完成 | flags={safety_flags}")
 
     result: dict = {
+        "messages": [
+            AIMessage(
+                content=final_response,
+                additional_kwargs={"is_final_response": True},
+            )
+        ],
         "final_response": final_response,
         "safety_flags": safety_flags,
         "sub_response": [],

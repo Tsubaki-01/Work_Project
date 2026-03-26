@@ -1,7 +1,11 @@
 """
 模块名称：memory_writer
-功能描述：记忆写入节点。每隔固定轮数调用 LLM 从近期对话中提取用户健康信息
-         （疾病、过敏、用药），增量更新到长期画像。
+功能描述：记忆写入节点。
+         1、会话结束时，清理messages，只保留摘要、提问和最终回答，避免messages过长。
+         2、每隔固定轮数调用 LLM 从近期对话中提取用户健康信息
+            （疾病、过敏、用药），增量更新到长期画像。
+
+
 
 
 提取时机：
@@ -19,7 +23,7 @@ from silver_pilot.utils import get_channel_logger
 from ..llm import call_llm_parse
 from ..memory.user_profile import UserProfileManager
 from ..state import AgentState
-from .helpers import build_profile_summary, messages_to_text
+from .helpers import build_profile_summary, filter_turn_messages, messages_to_text
 
 # ================= 日志 =================
 logger = get_channel_logger(config.LOG_DIR / "agent", "memory_writer")
@@ -68,13 +72,23 @@ class ProfileExtractOutput(BaseModel):
 
 def memory_writer_node(state: AgentState) -> dict:
     """
-    记忆写入节点：定期用 LLM 从对话中提取健康信息并持久化。
-
+    记忆写入节点：
+    1、会话结束时，清理messages，只保留摘要、提问和最终回答，避免messages过长。
+    2、定期用 LLM 从对话中提取健康信息并持久化。
     触发条件：消息数 ≥ 2 且距上次提取已过 EXTRACT_INTERVAL 轮。
 
     TODO：会话结束时（图拓扑保证走到此节点）也应该执行一次。
 
     """
+
+    # ────────────────────────────────────────────────────────────
+    # 1、会话结束时，清理messages，只保留摘要、提问和最终回答，避免messages过长。
+    # ────────────────────────────────────────────────────────────
+    state["messages"] = filter_turn_messages(state.get("messages", []))
+
+    # ────────────────────────────────────────────────────────────
+    # 2、定期用 LLM 从对话中提取健康信息并持久化。
+    # ────────────────────────────────────────────────────────────
     if _manager is None:
         logger.error("UserProfileManager 未初始化")
         return {}

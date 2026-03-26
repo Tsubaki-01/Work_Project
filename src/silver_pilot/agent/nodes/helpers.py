@@ -137,8 +137,8 @@ def get_conversation_context(messages: list[AnyMessage], max_turns: int = 6) -> 
     if last_human_idx <= 0:
         return ""
 
-    # 取它之前的 max_turns 条
-    history = messages[max(0, last_human_idx - max_turns) : last_human_idx]
+    # 取它之前的 max_turns*2 条
+    history = messages[max(0, last_human_idx - max_turns * 2) : last_human_idx]
     return messages_to_text(history)
 
 
@@ -171,3 +171,22 @@ def extract_ai_messages_after_last_human(
             ai_contents.append(msg)
 
     return user_query, ai_contents
+
+
+def filter_turn_messages(messages: list[AnyMessage]) -> list[AnyMessage]:
+    """
+    过滤消息列表，在每轮对话结束时调用，仅保留：
+    1. SystemMessage（系统提示词）
+    2. HumanMessage（用户输入请求）
+    3. 附加参数中有 "is_final_response": True 的 AIMessage（最终回答）
+
+    作用：过滤掉中间思考过程产生的大量临时 AIMessage，精简对话上下文。
+    """
+    filtered_messages: list[AnyMessage] = []
+    for msg in messages:
+        if isinstance(msg, (SystemMessage, HumanMessage)):
+            filtered_messages.append(msg)
+        elif isinstance(msg, AIMessage) and msg.additional_kwargs.get("is_final_response") is True:
+            filtered_messages.append(msg)
+
+    return filtered_messages
