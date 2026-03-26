@@ -26,7 +26,7 @@ def extract_latest_query(state: AgentState) -> str:
 
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):
-            return content_to_text(msg)
+            return message_to_text(msg)
     return ""
 
 
@@ -59,7 +59,7 @@ def build_profile_summary(profile: dict) -> str:
     return "；".join(parts)
 
 
-def content_to_text(message: AnyMessage) -> str:
+def message_to_text(message: AnyMessage) -> str:
     """将 AnyMessage 的任意合法类型统一转换为纯文本。"""
     content = message.content
     if isinstance(content, str):
@@ -110,11 +110,11 @@ def messages_to_text(messages: list[AnyMessage]) -> str:
     lines: list[str] = []
     for msg in messages:
         role = role_map.get(type(msg), "未知")
-        lines.append(f"{role}: {content_to_text(msg)}")
+        lines.append(f"{role}: {message_to_text(msg)}")
     return "\n\n".join(lines)
 
 
-def get_conversation_context(messages: list, max_turns: int = 6) -> str:
+def get_conversation_context(messages: list[AnyMessage], max_turns: int = 6) -> str:
     """
     提取本轮对话之前的历史消息作为上下文。
 
@@ -140,3 +140,34 @@ def get_conversation_context(messages: list, max_turns: int = 6) -> str:
     # 取它之前的 max_turns 条
     history = messages[max(0, last_human_idx - max_turns) : last_human_idx]
     return messages_to_text(history)
+
+
+def extract_ai_messages_after_last_human(
+    messages: list[AnyMessage],
+) -> tuple[str, list[AIMessage]]:
+    """
+    从消息列表中提取最后一条 HumanMessage 之后的所有 AIMessage 内容。
+
+    Returns:
+        tuple[str, list[AIMessage]]: (用户原始查询, AI 回复文本列表)
+    """
+    user_query = ""
+    ai_contents: list[AIMessage] = []
+
+    # 从后向前找到最后一条 HumanMessage
+    last_human_idx = -1
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage):
+            last_human_idx = i
+            user_query = message_to_text(messages[i])
+            break
+
+    if last_human_idx < 0:
+        return "", []
+
+    # 收集该 HumanMessage 之后的所有 AIMessage
+    for msg in messages[last_human_idx + 1 :]:
+        if isinstance(msg, AIMessage):
+            ai_contents.append(msg)
+
+    return user_query, ai_contents
