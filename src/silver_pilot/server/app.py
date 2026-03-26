@@ -274,9 +274,19 @@ async def get_reminders(user_id: str) -> list[ReminderItem]:
 @app.websocket("/ws/chat/{session_id}")
 async def ws_chat(websocket: WebSocket, session_id: str) -> None:
     await websocket.accept()
-    # 确保 session 存在
+    # 确保 session 存在；如果不存在，则向客户端返回错误并关闭连接
     if not _store.get_session(session_id):
-        _store.create_session("新对话", user_id="default_user")
+        error_msg = WSOutgoing(
+            type="error",
+            message=f"会话不存在或已失效：{session_id}",
+        ).model_dump_json()
+        try:
+            await websocket.send_text(error_msg)
+        except Exception:
+            # 如果发送错误信息失败，仍然尝试关闭连接
+            pass
+        await websocket.close()
+        return
     try:
         while True:
             raw = await websocket.receive_text()
