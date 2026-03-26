@@ -13,7 +13,8 @@
     会话结束前（由 output_guard → memory_writer 链路保证）也会执行一次。
 """
 
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AnyMessage, RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from pydantic import BaseModel, Field
 
 from silver_pilot.config import config
@@ -84,35 +85,39 @@ def memory_writer_node(state: AgentState) -> dict:
     # ────────────────────────────────────────────────────────────
     # 1、会话结束时，清理messages，只保留摘要、提问和最终回答，避免messages过长。
     # ────────────────────────────────────────────────────────────
-    state["messages"] = filter_turn_messages(state.get("messages", []))
+    filtered_messages = filter_turn_messages(state.get("messages", []))
+    messages_update: list[AnyMessage | RemoveMessage] = [
+        RemoveMessage(id=REMOVE_ALL_MESSAGES),
+        *filtered_messages,
+    ]
 
     # ────────────────────────────────────────────────────────────
     # 2、定期用 LLM 从对话中提取健康信息并持久化。
     # ────────────────────────────────────────────────────────────
     if _manager is None:
         logger.error("UserProfileManager 未初始化")
-        return {}
+        return {"messages": messages_update}
 
     user_id = state.get("user_profile", {}).get("user_id", "")
     if not user_id:
-        return {}
+        return {"messages": messages_update}
 
     total_turns = state.get("total_turns", 0)
     if total_turns < 2:
-        return {}
+        return {"messages": messages_update}
 
     # 节流：距上次提取不足 EXTRACT_INTERVAL 轮则跳过
     last_extracted_at = state.get("last_profile_extract_at", 0)
     if total_turns - last_extracted_at < EXTRACT_INTERVAL:
-        return {}
+        return {"messages": messages_update}
 
     logger.info(f"触发画像提取 | user={user_id}")
 
     # LLM 提取
-    extracted = _extract_from_conversation(state.get("messages", []), state.get("user_profile", {}))
+    extracted = _extract_from_conversation(filtered_messages, state.get("user_profile", {}))
     if extracted is None:
         logger.warning("LLM 画像提取失败，跳过")
-        return {}
+        return {"messages": messages_update}
 
     # 构建增量更新并持久化
     updates = _build_updates(extracted)
@@ -120,7 +125,10 @@ def memory_writer_node(state: AgentState) -> dict:
         _manager.update_profile(user_id, updates)
         logger.info(f"画像更新 | user={user_id} | fields={list(updates.keys())}")
 
-    return {"last_profile_extract_at": total_turns}
+    return {
+        "messages": messages_update,
+        "last_profile_extract_at": total_turns,
+    }
 
 
 # ────────────────────────────────────────────────────────────
