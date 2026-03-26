@@ -452,15 +452,11 @@ def _estimate_node_timings(events: list[tuple[str, dict, float]]) -> None:
         "memory_writer": 100,
     }
 
-    # 用权重生成估计时间
+    # 用权重生成确定性的估计时间（不使用随机抖动，便于复现与排查）
     for i in range(len(events)):
         name = events[i][0]
         w = weight_map.get(name, 100)
-        # 加入少量随机变化使其更真实
-        import random
-
-        jitter = random.uniform(0.8, 1.2)
-        estimated_ms = w * jitter
+        estimated_ms = float(w)
         events[i] = (events[i][0], events[i][1], estimated_ms)
 
 
