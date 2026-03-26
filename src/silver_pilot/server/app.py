@@ -337,41 +337,58 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
     try:
         print(f"[Agent] 处理: {inc.content[:50]}...")
 
-        # 逐节点流式处理，每个节点实时发送 WS 事件
-        events = await asyncio.to_thread(_stream_with_timing, inp, cfg)
-        print(f"[Agent] 共 {len(events)} 个节点事件")
+        # 逐节点实时流式处理：astream 每完成一个节点就 yield 一个 chunk，
+        # 立即发送 node_start / node_end，前端可实时看到节点推进。
+        # stream_mode="updates" 在节点执行完毕后才 yield，因此 node_start 用于
+        # 前端动画触发，duration_ms 通过相邻 chunk 到达时间差近似估算节点耗时。
+        assert _graph is not None
+        node_count = 0
+        t_prev_chunk = time.perf_counter()
+        async for chunk in _graph.astream(inp, config=cfg, stream_mode="updates"):
+            t_chunk_arrived = time.perf_counter()
+            for node_name, node_output in chunk.items():
+                display_name = NODE_DISPLAY_NAMES.get(node_name, node_name)
+                color = NODE_COLORS.get(display_name, "var(--text-sub)")
+                node_output = node_output if isinstance(node_output, dict) else {}
 
-        for node_name, node_output, duration_ms in events:
-            display_name = NODE_DISPLAY_NAMES.get(node_name, node_name)
-            color = NODE_COLORS.get(display_name, "var(--text-sub)")
+                # 发送 node_start（驱动前端动画；节点实际已执行完毕）
+                await ws.send_text(
+                    WSOutgoing(type="node_start", node=display_name).model_dump_json()
+                )
 
-            # 发送 node_start
-            await ws.send_text(WSOutgoing(type="node_start", node=display_name).model_dump_json())
+                # 构建 debug 数据
+                _fill_debug(node_name, node_output, dbg)
 
-            # 构建 debug 数据
-            _fill_debug(node_name, node_output, dbg)
+                # 用相邻 chunk 到达时间差近似节点耗时
+                duration_ms = (t_chunk_arrived - t_prev_chunk) * 1000
+                time_str = (
+                    f"{duration_ms:.0f}ms" if duration_ms < 1000 else f"{duration_ms / 1000:.1f}s"
+                )
+                dbg["pipeline"].append(
+                    {
+                        "name": display_name,
+                        "color": color,
+                        "time": time_str,
+                        "status": "done",
+                    }
+                )
 
-            # 发送 node_end（包含耗时）
-            time_str = (
-                f"{duration_ms:.0f}ms" if duration_ms < 1000 else f"{duration_ms / 1000:.1f}s"
-            )
-            dbg["pipeline"].append(
-                {
-                    "name": display_name,
-                    "color": color,
-                    "time": time_str,
-                    "status": "done",
-                }
-            )
+                # 发送 node_end（包含耗时）
+                await ws.send_text(
+                    WSOutgoing(
+                        type="node_end",
+                        node=display_name,
+                        data=_safe(node_output),
+                        duration_ms=round(duration_ms, 1),
+                    ).model_dump_json()
+                )
 
-            await ws.send_text(
-                WSOutgoing(
-                    type="node_end",
-                    node=display_name,
-                    data=_safe(node_output),
-                    duration_ms=round(duration_ms, 1),
-                ).model_dump_json()
-            )
+                node_count += 1
+                print(f"  [stream] {node_name}")
+
+            t_prev_chunk = time.perf_counter()
+
+        print(f"[Agent] 共 {node_count} 个节点事件")
 
         # 提取最终响应
         resp = await asyncio.to_thread(_final_resp, cfg)
@@ -388,70 +405,6 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
         else:
             traceback.print_exc()
             await ws.send_text(WSOutgoing(type="error", message=f"{nm}: {e}").model_dump_json())
-
-
-def _stream_with_timing(inp: dict, cfg: dict) -> list[tuple[str, dict, float]]:
-    """
-    同步执行 graph.stream()，为每个节点记录真实耗时。
-
-    Returns:
-        list[(node_name, node_output, duration_ms)]
-    """
-    assert _graph is not None
-    events: list[tuple[str, dict, float]] = []
-
-    for chunk in _graph.stream(inp, config=cfg, stream_mode="updates"):
-        for node_name, node_output in chunk.items():
-            t_start = time.perf_counter()
-            # 节点已经执行完毕（stream_mode="updates" 是事后通知）
-            # 用 perf_counter 差值不准确，改用前后节点时间差估算
-            duration_ms = 0.0
-
-            if events:
-                # 粗略估算：当前节点开始 = 上个节点结束
-                # 更精确的方式需要 LangGraph callback
-                pass
-
-            out = node_output if isinstance(node_output, dict) else {}
-            events.append((node_name, out, duration_ms))
-            print(f"  [stream] {node_name}")
-
-    # 为每个节点估算耗时（基于总时间均分 + 权重）
-    _estimate_node_timings(events)
-
-    return events
-
-
-def _estimate_node_timings(events: list[tuple[str, dict, float]]) -> None:
-    """
-    为节点事件列表填入估算耗时。
-
-    LangGraph stream_mode="updates" 不提供精确的每节点耗时，
-    但我们可以基于节点类型给出合理的估计值。
-    """
-    # 节点类型 → 典型耗时（ms）权重
-    weight_map: dict[str, float] = {
-        "perception_router": 50,
-        "supervisor": 400,
-        "medical_agent": 2000,
-        "device_agent": 500,
-        "chat_agent": 600,
-        "emergency_agent": 300,
-        "response_synthesizer": 800,
-        "output_guard": 50,
-        "memory_writer": 100,
-    }
-
-    # 用权重生成估计时间
-    for i in range(len(events)):
-        name = events[i][0]
-        w = weight_map.get(name, 100)
-        # 加入少量随机变化使其更真实
-        import random
-
-        jitter = random.uniform(0.8, 1.2)
-        estimated_ms = w * jitter
-        events[i] = (events[i][0], events[i][1], estimated_ms)
 
 
 def _final_resp(cfg: dict) -> str:
