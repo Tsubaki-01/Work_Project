@@ -175,7 +175,9 @@ def _retrieve(state: AgentState, user_query: str) -> RetrievalContext:
         retrieval_result = _pipeline.retrieve(
             user_query=user_query,
             image_context=state.get("current_image_context", ""),
-            conversation_context=get_conversation_context(state.get("messages", [])),
+            conversation_context=get_conversation_context(
+                state.get("messages", []), MEDICAL_AGENT_SUMMARY_TURNS
+            ),
         )
 
         logger.info(f"RAG 检索完成 | stats={retrieval_result.retrieval_stats}")

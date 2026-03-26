@@ -74,7 +74,9 @@ def chat_agent_node(state: AgentState) -> dict:
         user_query=user_query,
         user_emotion=user_emotion,
         current_image_context=state.get("current_image_context", ""),
-        conversation_summary=get_conversation_context(state.get("messages", [])),
+        conversation_summary=get_conversation_context(
+            state.get("messages", []), CHAT_AGENT_SUMMARY_TURNS
+        ),
     )
 
     # 调用 LLM
