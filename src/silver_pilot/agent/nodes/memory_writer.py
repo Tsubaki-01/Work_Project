@@ -71,7 +71,8 @@ def memory_writer_node(state: AgentState) -> dict:
     记忆写入节点：定期用 LLM 从对话中提取健康信息并持久化。
 
     触发条件：消息数 ≥ 2 且距上次提取已过 EXTRACT_INTERVAL 轮。
-    会话结束时（图拓扑保证走到此节点）也执行一次。
+
+    TODO：会话结束时（图拓扑保证走到此节点）也应该执行一次。
 
     """
     if _manager is None:

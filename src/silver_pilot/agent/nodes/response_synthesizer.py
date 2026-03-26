@@ -70,7 +70,7 @@ def response_synthesizer_node(state: AgentState) -> dict:
     # 单条回复：直接透传
     if len(ai_messages) == 1:
         logger.info("仅一条 AI 回复，跳过 LLM 综合，直接透传")
-        return {"sub_response": [messages_to_text(ai_messages)]}
+        return {"sub_response": [message_to_text(ai_messages[0])]}
 
     # 多条回复：LLM 综合
     synthesized = _synthesize_responses(user_query, ai_messages)
@@ -117,4 +117,4 @@ def _synthesize_responses(user_query: str, ai_messages: list[AIMessage]) -> str:
         logger.error(f"LLM 综合调用失败: {e}，回退到简单拼接")
 
     # 降级：简单拼接
-    return "\n\n".join([messages_to_text(msg) for msg in ai_messages])
+    return messages_to_text(ai_messages)
