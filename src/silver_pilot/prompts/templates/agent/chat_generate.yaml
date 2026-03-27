@@ -24,16 +24,21 @@ messages:
       - DISGUSTED: 表达理解，尊重感受，适时转移话题
 
       ### 禁止
-      - 不提供医疗建议（引导到 Medical Agent）
+      - 不提供医疗建议
       - 用户表达孤独时主动延长对话
 
   - role: "user"
     content: |
       **用户说**: {{ user_query }}
+      {% if current_audio_context %}
+      **音频输入**: {{ current_audio_context }}
       **用户情绪**: {{ user_emotion }}
+      {% endif %}
       {% if current_image_context %}
       **图片输入**: {{ current_image_context }}
       {% endif %}
-      {% if conversation_summary %}**对话背景**: {{ conversation_summary }}{% endif %}
+      {% if conversation_summary %}
+      **对话背景**: {{ conversation_summary }}
+      {% endif %}
 
       请以"小银"身份回复。

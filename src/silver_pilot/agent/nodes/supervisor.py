@@ -152,6 +152,7 @@ def _classify_and_dispatch(state: AgentState) -> dict:
     messages = prompt_manager.build_prompt(
         PROMPT_TEMPLATE,
         user_query=user_query,
+        current_audio_context=state.get("current_audio_context", ""),
         user_emotion=state.get("user_emotion", "NEUTRAL"),
         current_image_context=state.get("current_image_context", ""),
         conversation_summary=get_conversation_context(state.get("messages", [])),

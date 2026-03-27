@@ -72,6 +72,7 @@ def chat_agent_node(state: AgentState) -> dict:
     messages = prompt_manager.build_prompt(
         PROMPT_TEMPLATE,
         user_query=user_query,
+        current_audio_context=state.get("current_audio_context", ""),
         user_emotion=user_emotion,
         current_image_context=state.get("current_image_context", ""),
         conversation_summary=get_conversation_context(

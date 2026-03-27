@@ -17,11 +17,12 @@ messages:
 
       ### Rules
       1. 一条用户消息可能包含多个意图（复合意图），请全部识别并拆分
-      2. 每个意图需要有独立的、可回答的 sub_query
-      3. 如果情感标签为 SAD/FEARFUL 此类且涉及身体不适，优先归类为 EMERGENCY
-      4. 如果无法确定意图，归类为 CHITCHAT
-      5. priority 数值越小优先级越高
-      6. risk_level 取值：low / medium / high / critical
+      2. 用户可能输入语音或图片等多模态信息，请结合分析意图，并体现在 sub_query 中
+      3. 每个意图需要有独立的、可回答的 sub_query
+      4. 如果情感标签为 SAD/FEARFUL 此类且涉及身体不适，优先归类为 EMERGENCY
+      5. 如果无法确定意图，归类为 CHITCHAT
+      6. priority 数值越小优先级越高
+      7. risk_level 取值：low / medium / high / critical
 
       ### Output Format
       请严格输出以下 JSON 格式，不要输出任何其他内容：
@@ -69,7 +70,10 @@ messages:
   - role: "user"
     content: |
       **用户输入**: {{ user_query }}
+      {% if current_audio_context %}
+      **音频输入**: {{ current_audio_context }}
       **用户情感**: {{ user_emotion }}
+      {% endif %}
       {% if current_image_context %}
       **图片输入**: {{ current_image_context }}
       {% endif %}

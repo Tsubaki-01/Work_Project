@@ -110,7 +110,7 @@ def perception_router_node(state: AgentState) -> dict:
     if input_modality.get("audio"):
         logger.info("感知路由 | 检测到语音输入")
         audio_result = _process_audio(modality_info["audio"])
-        standardized_messages += "\n\n" + audio_result.content
+        # standardized_messages += "\n\n" + audio_result.content
         emotion = audio_result.emotion
         audio_context = audio_result.content
         logger.info(
