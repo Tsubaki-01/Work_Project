@@ -556,14 +556,13 @@ def _fill_timing_summary(dbg: dict[str, Any]) -> None:
     if not pipeline:
         return
 
-    total_ms = 0.0
+    total_ms = sum(_time_to_ms(n.get("time", "0ms")) for n in pipeline)
     parallel_ms = 0.0
     serial_ms = 0.0
     i = 0
     while i < len(pipeline):
         node = pipeline[i]
         ms = _time_to_ms(node.get("time", "0ms"))
-        total_ms += ms
         if node.get("parallel"):
             # 连续 parallel 节点按 wall-clock 取最大值
             j = i
