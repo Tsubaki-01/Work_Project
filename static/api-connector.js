@@ -36,6 +36,34 @@
   let _pendingDebug = null; // 累积的 debug 数据
   let _parallelFlow = false;
   let _pipelineInsertCounter = 0;
+  const _orderingUtil = (window.PipelineOrdering && typeof window.PipelineOrdering.normalizePipelineOrder === "function")
+    ? window.PipelineOrdering
+    : {
+      groupRank: (groupId) => {
+        if (!groupId || typeof groupId !== "string") return 99;
+        if (groupId.startsWith("0-")) return 0;
+        if (groupId.startsWith("1-")) return 1;
+        if (groupId.startsWith("2-")) return 2;
+        return 99;
+      },
+      normalizePipelineOrder: (pipeline) => {
+        if (!Array.isArray(pipeline)) return [];
+        pipeline.sort((a, b) => {
+          const ga = (!a || typeof a.group_id !== "string") ? 99 : (a.group_id.startsWith("0-") ? 0 : (a.group_id.startsWith("1-") ? 1 : (a.group_id.startsWith("2-") ? 2 : 99)));
+          const gb = (!b || typeof b.group_id !== "string") ? 99 : (b.group_id.startsWith("0-") ? 0 : (b.group_id.startsWith("1-") ? 1 : (b.group_id.startsWith("2-") ? 2 : 99)));
+          if (ga !== gb) return ga - gb;
+
+          const sa = Number.isFinite(a?.event_seq) ? a.event_seq : Number.MAX_SAFE_INTEGER;
+          const sb = Number.isFinite(b?.event_seq) ? b.event_seq : Number.MAX_SAFE_INTEGER;
+          if (sa !== sb) return sa - sb;
+
+          const ia = Number.isFinite(a?._insert_idx) ? a._insert_idx : Number.MAX_SAFE_INTEGER;
+          const ib = Number.isFinite(b?._insert_idx) ? b._insert_idx : Number.MAX_SAFE_INTEGER;
+          return ia - ib;
+        });
+        return pipeline;
+      },
+    };
 
   function _findLatestPipelineNode(nodeName, preferActive = false) {
     if (!_pendingDebug || !_pendingDebug.pipeline) return null;
@@ -47,29 +75,9 @@
     return null;
   }
 
-  function _groupRank(groupId) {
-    if (!groupId || typeof groupId !== "string") return 99;
-    if (groupId.startsWith("0-")) return 0;
-    if (groupId.startsWith("1-")) return 1;
-    if (groupId.startsWith("2-")) return 2;
-    return 99;
-  }
-
   function _normalizePipelineOrder() {
     if (!_pendingDebug || !Array.isArray(_pendingDebug.pipeline)) return;
-    _pendingDebug.pipeline.sort((a, b) => {
-      const ga = _groupRank(a.group_id);
-      const gb = _groupRank(b.group_id);
-      if (ga !== gb) return ga - gb;
-
-      const sa = Number.isFinite(a.event_seq) ? a.event_seq : Number.MAX_SAFE_INTEGER;
-      const sb = Number.isFinite(b.event_seq) ? b.event_seq : Number.MAX_SAFE_INTEGER;
-      if (sa !== sb) return sa - sb;
-
-      const ia = Number.isFinite(a._insert_idx) ? a._insert_idx : Number.MAX_SAFE_INTEGER;
-      const ib = Number.isFinite(b._insert_idx) ? b._insert_idx : Number.MAX_SAFE_INTEGER;
-      return ia - ib;
-    });
+    _orderingUtil.normalizePipelineOrder(_pendingDebug.pipeline);
   }
 
   // ── 检测后端 ──
