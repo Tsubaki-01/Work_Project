@@ -426,6 +426,7 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
         "rag": None,
         "tools": [],
         "perception": None,
+        "timing": {},
     }
 
     try:
@@ -476,6 +477,9 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
                 ).model_dump_json()
             )
 
+            # 输出并行执行可观测摘要（用于前端或排障）
+            _fill_timing_summary(dbg)
+
         # 提取最终响应
         resp = await asyncio.to_thread(_final_resp, cfg)
         print(f"[Agent] 响应: {resp[:80]}...")
@@ -502,55 +506,74 @@ def _stream_with_timing(inp: dict, cfg: dict) -> list[tuple[str, dict, float]]:
     """
     assert _graph is not None
     events: list[tuple[str, dict, float]] = []
+    stream_start = time.perf_counter()
+    prev_tick = stream_start
 
     for chunk in _graph.stream(inp, config=cfg, stream_mode="updates"):
-        for node_name, node_output in chunk.items():
-            t_start = time.perf_counter()
-            # 节点已经执行完毕（stream_mode="updates" 是事后通知）
-            # 用 perf_counter 差值不准确，改用前后节点时间差估算
-            duration_ms = 0.0
+        now_tick = time.perf_counter()
+        elapsed_ms = max((now_tick - prev_tick) * 1000, 0.0)
+        items = list(chunk.items())
+        per_node_ms = elapsed_ms / max(len(items), 1)
 
-            if events:
-                # 粗略估算：当前节点开始 = 上个节点结束
-                # 更精确的方式需要 LangGraph callback
-                pass
-
+        for node_name, node_output in items:
             out = node_output if isinstance(node_output, dict) else {}
-            events.append((node_name, out, duration_ms))
+            events.append((node_name, out, per_node_ms))
             print(f"  [stream] {node_name}")
 
-    # 为每个节点估算耗时（基于总时间均分 + 权重）
-    _estimate_node_timings(events)
+        prev_tick = now_tick
+
+    total_ms = (time.perf_counter() - stream_start) * 1000
+    print(f"[stream] total wall-clock: {total_ms:.1f}ms")
 
     return events
 
 
-def _estimate_node_timings(events: list[tuple[str, dict, float]]) -> None:
-    """
-    为节点事件列表填入估算耗时。
+def _fill_timing_summary(dbg: dict[str, Any]) -> None:
+    """根据 pipeline 生成简要 timing 摘要，突出并行组 wall-clock。"""
+    pipeline = dbg.get("pipeline", [])
+    if not pipeline:
+        return
 
-    LangGraph stream_mode="updates" 不提供精确的每节点耗时，
-    但我们可以基于节点类型给出合理的估计值。
-    """
-    # 节点类型 → 典型耗时（ms）权重
-    weight_map: dict[str, float] = {
-        "perception_router": 50,
-        "supervisor": 400,
-        "medical_agent": 2000,
-        "device_agent": 500,
-        "chat_agent": 600,
-        "emergency_agent": 300,
-        "response_synthesizer": 800,
-        "output_guard": 50,
-        "memory_writer": 100,
+    total_ms = 0.0
+    parallel_ms = 0.0
+    serial_ms = 0.0
+    i = 0
+    while i < len(pipeline):
+        node = pipeline[i]
+        ms = _time_to_ms(node.get("time", "0ms"))
+        total_ms += ms
+        if node.get("parallel"):
+            # 连续 parallel 节点按 wall-clock 取最大值
+            j = i
+            group_max = 0.0
+            while j < len(pipeline) and pipeline[j].get("parallel"):
+                group_max = max(group_max, _time_to_ms(pipeline[j].get("time", "0ms")))
+                j += 1
+            parallel_ms += group_max
+            i = j
+        else:
+            serial_ms += ms
+            i += 1
+
+    dbg["timing"] = {
+        "total_ms_sum": round(total_ms, 1),
+        "serial_ms_sum": round(serial_ms, 1),
+        "parallel_wall_ms": round(parallel_ms, 1),
     }
 
-    # 用权重生成确定性的估计时间（不使用随机抖动，便于复现与排查）
-    for i in range(len(events)):
-        name = events[i][0]
-        w = weight_map.get(name, 100)
-        estimated_ms = float(w)
-        events[i] = (events[i][0], events[i][1], estimated_ms)
+
+def _time_to_ms(time_text: str) -> float:
+    if not isinstance(time_text, str):
+        return 0.0
+    t = time_text.strip().lower()
+    try:
+        if t.endswith("ms"):
+            return float(t[:-2])
+        if t.endswith("s"):
+            return float(t[:-1]) * 1000
+        return float(t)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _final_resp(cfg: dict) -> str:

@@ -528,7 +528,18 @@ function rPipe(){
   h+='</div>';
   const dn=ns.filter(n=>n.status==='done');
   const tot=dn.reduce((s,n)=>s+parseFloat(n.time),0);
-  h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${tot<100?tot.toFixed(0)+'ms':(tot/1000).toFixed(2)+'s'}</div>`;
+  let effectiveMs=0;let p=0;
+  while(p<ns.length){
+    if(ns[p].parallel){
+      let q=p,gMax=0;
+      while(q<ns.length&&ns[q].parallel){gMax=Math.max(gMax,parseFloat(ns[q].time)||0);q++}
+      effectiveMs+=gMax;p=q;
+    }else{effectiveMs+=(parseFloat(ns[p].time)||0);p++}
+  }
+  h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${tot<100?tot.toFixed(0)+'ms':(tot/1000).toFixed(2)+'s'} | Effective:${effectiveMs<100?effectiveMs.toFixed(0)+'ms':(effectiveMs/1000).toFixed(2)+'s'}</div>`;
+  if(DD.timing&&typeof DD.timing.parallel_wall_ms==='number'){
+    h+=`<div class="mono" style="font-size:10px;color:var(--text-hint);margin-top:4px">Parallel wall-clock:${DD.timing.parallel_wall_ms.toFixed(0)}ms</div>`;
+  }
   if(DD.perception)h+=`<div style="margin-top:10px"><div class="rag-title">Perception Output</div><div class="rag-chunk" style="border-color:var(--n-per)">${esc(DD.perception.image_context)}</div></div>`;
   el.innerHTML=h;
 }
