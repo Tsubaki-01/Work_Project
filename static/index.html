@@ -219,6 +219,14 @@ input,textarea{font-family:inherit}
 .pipe-node.pending{opacity:.3}
 .pipe-dot{width:6px;height:6px;border-radius:50%}
 .pipe-arr{color:var(--text-hint);font-size:12px}
+.pipe-seg{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:10px;border:1px solid var(--border-lt);background:var(--bg-card)}
+.pipe-seg-tag{display:inline-flex;align-items:center;gap:4px;width:max-content;font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;font-family:'JetBrains Mono',monospace}
+.pipe-seg-tag.serial{background:var(--blue-bg);color:var(--blue)}
+.pipe-seg-tag.parallel{background:var(--accent-bg);color:var(--accent)}
+.pipe-seg-tag.post{background:var(--green-bg);color:var(--green)}
+.pipe-seg-tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;border-radius:50%;font-size:9px;line-height:1;background:rgba(0,0,0,.08);color:inherit;cursor:help}
+.pipe-seg-tip::after{content:attr(data-tip);position:absolute;left:50%;top:16px;transform:translateX(-50%);white-space:nowrap;background:var(--bg-card);color:var(--text-sub);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:10px;font-weight:500;box-shadow:var(--shadow-sm);opacity:0;pointer-events:none;z-index:5;transition:opacity .15s}
+.pipe-seg-tip:hover::after{opacity:1}
 .pipe-parallel-group{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1.5px dashed var(--accent-lt);border-radius:10px;background:var(--accent-bg);position:relative}
 .pipe-parallel-label{position:absolute;top:-8px;left:8px;font-size:9px;font-weight:700;color:var(--accent);background:var(--bg-drawer);padding:0 4px}
 .intent-item{display:flex;align-items:center;gap:7px;padding:9px 11px;background:var(--bg-card);border-radius:var(--r-md);border-left:3px solid;margin-bottom:5px;box-shadow:var(--shadow-sm)}
@@ -504,39 +512,76 @@ function rPipe(){
   const el=document.getElementById('dBody');
   if(!DD)return;
   const ns=DD.pipeline||[];
-  let h='<div class="pipe-flow">';
-  let i=0;
-  while(i<ns.length){
-    const n=ns[i];
-    if(n.parallel){
-      let j=i;
-      const g=[];
-      while(j<ns.length&&ns[j].parallel){g.push(ns[j]);j++}
-      h+='<div class="pipe-parallel-group"><span class="pipe-parallel-label">PARALLEL</span>';
-      g.forEach((pn,k)=>{
-        h+=`<div class="pipe-node ${pn.status||'done'}" style="background:${pn.color}12;border-color:${pn.status==='active'?pn.color:'transparent'}"><span class="pipe-dot" style="background:${pn.color}"></span><span style="color:${pn.color}">${pn.name}</span>${pn.status==='done'?`<span class="mono" style="color:var(--text-hint);font-size:9px">${pn.time}</span>`:''}</div>`;
-        if(k<g.length-1)h+='<span class="pipe-arr">│</span>';
-      });
-      h+='</div>';
-      i=j;
-    }else{
-      h+=`<div class="pipe-node ${n.status||'done'}" style="background:${n.color}12;border-color:${n.status==='active'?n.color:'transparent'}"><span class="pipe-dot" style="background:${n.color}"></span><span style="color:${n.color}">${n.name}</span>${n.status==='done'?`<span class="mono" style="color:var(--text-hint);font-size:9px">${n.time}</span>`:''}</div>`;
-      i++;
-    }
-    if(i<ns.length)h+='<span class="pipe-arr">→</span>';
+
+  const toMs=(t)=>{if(typeof t!=='string')return 0;const s=t.trim().toLowerCase();if(s.endsWith('ms'))return parseFloat(s)||0;if(s.endsWith('s'))return (parseFloat(s)||0)*1000;return parseFloat(s)||0};
+  const fmtMs=(ms)=>ms<100?`${ms.toFixed(0)}ms`:`${(ms/1000).toFixed(2)}s`;
+
+  const segMeta=(gid)=>{
+    if((gid||'').startsWith('1-'))return{label:'并行段',cls:'parallel'};
+    if((gid||'').startsWith('2-'))return{label:'收尾段',cls:'post'};
+    return{label:'串行段',cls:'serial'};
+  };
+
+  const normGroupId=(n)=>n.group_id||(n.parallel?'1-parallel':'0-serial');
+
+  const segments=[];
+  for(let s=0;s<ns.length;s++){
+    const n=ns[s],gid=normGroupId(n);
+    const last=segments[segments.length-1];
+    if(!last||last.groupId!==gid)segments.push({groupId:gid,nodes:[n]});
+    else last.nodes.push(n);
   }
+
+  let h='<div class="pipe-flow">';
+  segments.forEach((seg,segIdx)=>{
+    const meta=segMeta(seg.groupId);
+    const segNodes=seg.nodes;
+    const segNodeCount=segNodes.length;
+    let segDurationMs=0;
+    let segTip='段耗时口径：串行 sum';
+    if(meta.cls==='parallel'){
+      segDurationMs=Math.max(...segNodes.map(n=>toMs(n.time||'0ms')),0);
+      segTip='段耗时口径：并行 max';
+    }else{
+      segDurationMs=segNodes.reduce((sum,n)=>sum+toMs(n.time||'0ms'),0);
+      segTip='段耗时口径：串行 sum';
+    }
+    h+=`<div class="pipe-seg"><span class="pipe-seg-tag ${meta.cls}">${meta.label} · ${segNodeCount} 节点 · ${fmtMs(segDurationMs)}<span class="pipe-seg-tip" data-tip="${segTip}">i</span></span>`;
+    let i=0;
+    while(i<segNodes.length){
+      const n=segNodes[i];
+      if(n.parallel){
+        let j=i;
+        const g=[];
+        while(j<segNodes.length&&segNodes[j].parallel){g.push(segNodes[j]);j++}
+        h+='<div class="pipe-parallel-group"><span class="pipe-parallel-label">PARALLEL</span>';
+        g.forEach((pn,k)=>{
+          h+=`<div class="pipe-node ${pn.status||'done'}" style="background:${pn.color}12;border-color:${pn.status==='active'?pn.color:'transparent'}"><span class="pipe-dot" style="background:${pn.color}"></span><span style="color:${pn.color}">${pn.name}</span>${pn.status==='done'?`<span class="mono" style="color:var(--text-hint);font-size:9px">${pn.time}</span>`:''}</div>`;
+          if(k<g.length-1)h+='<span class="pipe-arr">│</span>';
+        });
+        h+='</div>';
+        i=j;
+      }else{
+        h+=`<div class="pipe-node ${n.status||'done'}" style="background:${n.color}12;border-color:${n.status==='active'?n.color:'transparent'}"><span class="pipe-dot" style="background:${n.color}"></span><span style="color:${n.color}">${n.name}</span>${n.status==='done'?`<span class="mono" style="color:var(--text-hint);font-size:9px">${n.time}</span>`:''}</div>`;
+        i++;
+      }
+      if(i<segNodes.length)h+='<span class="pipe-arr">→</span>';
+    }
+    h+='</div>';
+    if(segIdx<segments.length-1)h+='<span class="pipe-arr">→</span>';
+  });
   h+='</div>';
   const dn=ns.filter(n=>n.status==='done');
-  const tot=dn.reduce((s,n)=>s+parseFloat(n.time),0);
+  const tot=dn.reduce((s,n)=>s+toMs(n.time||'0ms'),0);
   let effectiveMs=0;let p=0;
   while(p<ns.length){
     if(ns[p].parallel){
       let q=p,gMax=0;
-      while(q<ns.length&&ns[q].parallel){gMax=Math.max(gMax,parseFloat(ns[q].time)||0);q++}
+      while(q<ns.length&&ns[q].parallel){gMax=Math.max(gMax,toMs(ns[q].time||'0ms'));q++}
       effectiveMs+=gMax;p=q;
-    }else{effectiveMs+=(parseFloat(ns[p].time)||0);p++}
+    }else{effectiveMs+=(toMs(ns[p].time||'0ms'));p++}
   }
-  h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${tot<100?tot.toFixed(0)+'ms':(tot/1000).toFixed(2)+'s'} | Effective:${effectiveMs<100?effectiveMs.toFixed(0)+'ms':(effectiveMs/1000).toFixed(2)+'s'}</div>`;
+  h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${fmtMs(tot)} | Effective:${fmtMs(effectiveMs)}</div>`;
   if(DD.timing&&typeof DD.timing.parallel_wall_ms==='number'){
     h+=`<div class="mono" style="font-size:10px;color:var(--text-hint);margin-top:4px">Parallel wall-clock:${DD.timing.parallel_wall_ms.toFixed(0)}ms</div>`;
   }

@@ -35,6 +35,7 @@
   let _connected = false;
   let _pendingDebug = null; // 累积的 debug 数据
   let _parallelFlow = false;
+  let _pipelineInsertCounter = 0;
 
   function _findLatestPipelineNode(nodeName, preferActive = false) {
     if (!_pendingDebug || !_pendingDebug.pipeline) return null;
@@ -44,6 +45,31 @@
       if (!preferActive || n.status === "active") return n;
     }
     return null;
+  }
+
+  function _groupRank(groupId) {
+    if (!groupId || typeof groupId !== "string") return 99;
+    if (groupId.startsWith("0-")) return 0;
+    if (groupId.startsWith("1-")) return 1;
+    if (groupId.startsWith("2-")) return 2;
+    return 99;
+  }
+
+  function _normalizePipelineOrder() {
+    if (!_pendingDebug || !Array.isArray(_pendingDebug.pipeline)) return;
+    _pendingDebug.pipeline.sort((a, b) => {
+      const ga = _groupRank(a.group_id);
+      const gb = _groupRank(b.group_id);
+      if (ga !== gb) return ga - gb;
+
+      const sa = Number.isFinite(a.event_seq) ? a.event_seq : Number.MAX_SAFE_INTEGER;
+      const sb = Number.isFinite(b.event_seq) ? b.event_seq : Number.MAX_SAFE_INTEGER;
+      if (sa !== sb) return sa - sb;
+
+      const ia = Number.isFinite(a._insert_idx) ? a._insert_idx : Number.MAX_SAFE_INTEGER;
+      const ib = Number.isFinite(b._insert_idx) ? b._insert_idx : Number.MAX_SAFE_INTEGER;
+      return ia - ib;
+    });
   }
 
   // ── 检测后端 ──
@@ -213,12 +239,12 @@
     switch (msg.type) {
       case "node_start":
         // 实时驱动前端 Pipeline 动画：将节点标记为 active
-        _onNodeStart(msg.node);
+        _onNodeStart(msg.node, msg.event_seq || 0, msg.group_id || "");
         break;
 
       case "node_end":
         // 节点完成：标记 done + 写入耗时
-        _onNodeEnd(msg.node, msg.data || {}, msg.duration_ms || 0);
+        _onNodeEnd(msg.node, msg.data || {}, msg.duration_ms || 0, msg.event_seq || 0, msg.group_id || "");
         break;
 
       case "hitl_request":
@@ -239,7 +265,7 @@
 
   // ── Pipeline 动画驱动 ──
 
-  function _onNodeStart(nodeName) {
+  function _onNodeStart(nodeName, eventSeq, groupId) {
     if (!_pendingDebug) return;
 
     // 尽量匹配最近一个同名 active 节点，避免并行/恢复场景下覆盖历史节点
@@ -251,17 +277,24 @@
         time: "...",
         status: "active",
         parallel: _parallelFlow && /Medical Agent|Device Agent|Chat Agent/.test(nodeName),
+        event_seq: eventSeq || 0,
+        group_id: groupId || "",
+        _insert_idx: ++_pipelineInsertCounter,
       });
     } else {
       existingActive.status = "active";
+      if (eventSeq) existingActive.event_seq = eventSeq;
+      if (groupId) existingActive.group_id = groupId;
     }
+
+    _normalizePipelineOrder();
 
     // 刷新 drawer
     window.DD = _pendingDebug;
     if (typeof updDr === "function") updDr();
   }
 
-  function _onNodeEnd(nodeName, data, durationMs) {
+  function _onNodeEnd(nodeName, data, durationMs, eventSeq, groupId) {
     if (!_pendingDebug) return;
 
     const timeStr = durationMs < 1000 ? `${Math.round(durationMs)}ms` : `${(durationMs / 1000).toFixed(1)}s`;
@@ -279,6 +312,8 @@
       existingActive.status = "done";
       existingActive.time = timeStr;
       existingActive.parallel = isParallel || existingActive.parallel;
+      if (eventSeq) existingActive.event_seq = eventSeq;
+      if (groupId) existingActive.group_id = groupId;
     } else {
       _pendingDebug.pipeline.push({
         name: nodeName,
@@ -286,8 +321,13 @@
         time: timeStr,
         status: "done",
         parallel: isParallel || (_parallelFlow && /Medical Agent|Device Agent|Chat Agent/.test(nodeName)),
+        event_seq: eventSeq || 0,
+        group_id: groupId || "",
+        _insert_idx: ++_pipelineInsertCounter,
       });
     }
+
+    _normalizePipelineOrder();
 
     // 合并后端传来的 debug 分片数据
     if (data) {
@@ -320,6 +360,8 @@
     if (debug && debug.pipeline) {
       _pendingDebug = debug;
       _parallelFlow = false;
+      _pipelineInsertCounter = (_pendingDebug.pipeline || []).length;
+      _normalizePipelineOrder();
     }
 
     if (typeof addMsg === "function") {
@@ -336,6 +378,7 @@
 
     _pendingDebug = null;
     _parallelFlow = false;
+    _pipelineInsertCounter = 0;
   }
 
   // ═══════════════════════════════════════
@@ -698,6 +741,7 @@
 
         _pendingDebug = { pipeline: [], intents: [], entities: [], rag: null, tools: [], perception: null };
         _parallelFlow = false;
+        _pipelineInsertCounter = 0;
         window.DD = _pendingDebug;
         if (typeof tDr === "function" && typeof dT === "function") dT("pipe");
 

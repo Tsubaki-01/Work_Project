@@ -69,6 +69,8 @@ class WSOutgoing(BaseModel):
     content: str = ""
     message: str = ""
     duration_ms: float = 0
+    event_seq: int = 0
+    group_id: str = ""
     timestamp: float = Field(default_factory=time.time)
     debug: dict[str, Any] = Field(default_factory=dict)
 

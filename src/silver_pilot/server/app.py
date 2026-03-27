@@ -431,6 +431,7 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
 
     try:
         print(f"[Agent] 处理: {inc.content[:50]}...")
+        event_seq = 0
 
         # 逐节点流式处理，每个节点实时发送 WS 事件
         events = await asyncio.to_thread(_stream_with_timing, inp, cfg)
@@ -439,9 +440,24 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
         for node_name, node_output, duration_ms in events:
             display_name = NODE_DISPLAY_NAMES.get(node_name, node_name)
             color = NODE_COLORS.get(display_name, "var(--text-sub)")
+            in_parallel_flow = any(i.get("parallel") for i in dbg.get("intents", []))
+            is_parallel_agent = node_name in {
+                "medical_agent",
+                "device_agent",
+                "chat_agent",
+            }
+            group_id = _resolve_event_group_id(node_name, in_parallel_flow, is_parallel_agent)
 
             # 发送 node_start
-            await ws.send_text(WSOutgoing(type="node_start", node=display_name).model_dump_json())
+            event_seq += 1
+            await ws.send_text(
+                WSOutgoing(
+                    type="node_start",
+                    node=display_name,
+                    event_seq=event_seq,
+                    group_id=group_id,
+                ).model_dump_json()
+            )
 
             # 构建 debug 数据
             _fill_debug(node_name, node_output, dbg)
@@ -456,6 +472,8 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
                 "device_agent",
                 "chat_agent",
             }
+            group_id = _resolve_event_group_id(node_name, in_parallel_flow, is_parallel_agent)
+            event_seq += 1
             dbg["pipeline"].append(
                 {
                     "name": display_name,
@@ -463,6 +481,8 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
                     "time": time_str,
                     "status": "done",
                     "parallel": in_parallel_flow and is_parallel_agent,
+                    "event_seq": event_seq,
+                    "group_id": group_id,
                 }
             )
             node_data = _safe(node_output)
@@ -474,6 +494,8 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
                     node=display_name,
                     data=node_data,
                     duration_ms=round(duration_ms, 1),
+                    event_seq=event_seq,
+                    group_id=group_id,
                 ).model_dump_json()
             )
 
@@ -491,7 +513,7 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
         nm = type(e).__name__
         if "GraphInterrupt" in nm:
             print("[Agent] HITL interrupt")
-            await _hitl(ws, sid, cfg, dbg)
+            await _hitl(ws, sid, cfg, dbg, event_seq_start=event_seq)
         else:
             traceback.print_exc()
             await ws.send_text(WSOutgoing(type="error", message=f"{nm}: {e}").model_dump_json())
@@ -574,6 +596,20 @@ def _time_to_ms(time_text: str) -> float:
         return float(t)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _resolve_event_group_id(node_name: str, in_parallel_flow: bool, is_parallel_agent: bool) -> str:
+    """生成前端稳定排序用的事件组 ID。"""
+    if not in_parallel_flow:
+        return "0-serial"
+
+    if is_parallel_agent:
+        return "1-parallel"
+
+    if node_name in {"response_synthesizer", "output_guard", "memory_writer"}:
+        return "2-post"
+
+    return "0-serial"
 
 
 def _final_resp(cfg: dict) -> str:
@@ -701,7 +737,7 @@ def _fill_debug(name: str, out: dict, dbg: dict) -> None:
 # ═══════════════════════════════════════
 
 
-async def _hitl(ws: WebSocket, sid: str, cfg: dict, dbg: dict) -> None:
+async def _hitl(ws: WebSocket, sid: str, cfg: dict, dbg: dict, event_seq_start: int = 0) -> None:
     idata = await asyncio.to_thread(_get_interrupt, cfg)
     print(f"[HITL] data: {idata}")
     await ws.send_text(WSOutgoing(type="hitl_request", data=idata).model_dump_json())
@@ -714,6 +750,7 @@ async def _hitl(ws: WebSocket, sid: str, cfg: dict, dbg: dict) -> None:
     try:
         evts = await asyncio.to_thread(_resume, rv, cfg)
         in_parallel_flow = any(i.get("parallel") for i in dbg.get("intents", []))
+        event_seq = event_seq_start
         for n, o, _ in evts:
             display = NODE_DISPLAY_NAMES.get(n, n)
             is_parallel_agent = n in {
@@ -721,10 +758,18 @@ async def _hitl(ws: WebSocket, sid: str, cfg: dict, dbg: dict) -> None:
                 "device_agent",
                 "chat_agent",
             }
+            group_id = _resolve_event_group_id(n, in_parallel_flow, is_parallel_agent)
             node_data = _safe(o)
             node_data["parallel"] = in_parallel_flow and is_parallel_agent
+            event_seq += 1
             await ws.send_text(
-                WSOutgoing(type="node_end", node=display, data=node_data).model_dump_json()
+                WSOutgoing(
+                    type="node_end",
+                    node=display,
+                    data=node_data,
+                    event_seq=event_seq,
+                    group_id=group_id,
+                ).model_dump_json()
             )
             _fill_debug(n, o, dbg)
             color = NODE_COLORS.get(display, "var(--text-sub)")
@@ -735,6 +780,8 @@ async def _hitl(ws: WebSocket, sid: str, cfg: dict, dbg: dict) -> None:
                     "time": "...",
                     "status": "done",
                     "parallel": in_parallel_flow and is_parallel_agent,
+                    "event_seq": event_seq,
+                    "group_id": group_id,
                 }
             )
         fr = await asyncio.to_thread(_final_resp, cfg)
