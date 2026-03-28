@@ -24,7 +24,7 @@
 
 ## Tech Stack
 
-![tech stack](./imgs/tech stack.png)
+![tech stack](./imgs/tech_stack.png)
 
 
 ------
@@ -33,7 +33,7 @@
 
 ### Agent 状态图
 
-![agent system](./imgs/agent system.png)
+![agent system](./imgs/agent_system.png)
 
 Supervisor 通过一次 LLM 调用完成意图分类。单意图串行路由到对应子 Agent，多意图通过 LangGraph `Send` 并行分发。Emergency 意图会短路其他所有意图。
 
@@ -73,7 +73,7 @@ graph LR
     style D3 fill:#4A82B8,color:#fff
 ```
 
-![agent system](./imgs/rag pipeline.png)
+![agent system](./imgs/rag_pipeline.png)
 
 - **社区摘要** — Leiden 算法离线聚类 + LLM 摘要 + 向量化缓存。运行时通过实体命中 + 语义匹配定位相关社区，适合"老年人高血压有哪些治疗方案"这类聚合问题。
 - **推理路径** — 在 Neo4j 中查找实体间的多跳最短路径，再由 LLM 翻译为自然语言推理链。比如 `阿司匹林 → 抑制血小板聚集 → 增加出血风险 ← 华法林`，路径本身就是"能不能一起吃"的论据。
