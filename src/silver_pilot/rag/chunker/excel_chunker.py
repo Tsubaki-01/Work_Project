@@ -149,7 +149,7 @@ class ExcelChunker:
             for col in group.columns:
                 text = parsed_row.contents.get(col)
                 if text:
-                    sections.append(f"**{col}**{text}")
+                    sections.append(f"**{col}**：{text}")
 
             if not sections:
                 continue  # 该组全部为空，跳过
@@ -162,7 +162,7 @@ class ExcelChunker:
 
             for sub_idx, segment in enumerate(text_segments):
                 # 确保切分出来的每一个子块都带有前缀
-                final_content = f"**{prefix}** {segment}" if prefix else segment
+                final_content = f"**{parsed_row.metadata.get('标题', '')}** **{prefix}** {segment}"
                 chunks.append(
                     DocumentChunk(
                         group_name=group.name,

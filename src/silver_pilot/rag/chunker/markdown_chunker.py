@@ -161,7 +161,7 @@ class MarkdownChunker:
                 prefix = "[" + " > ".join(path_parts) + "] "
 
             # 构建 chunk 文本
-            full_text = prefix + section.content.strip()
+            full_text = section.content.strip()
 
             # # 对表格 chunk 不做二次切分（即使超长也保持完整）
             # if section.is_table:
@@ -196,9 +196,10 @@ class MarkdownChunker:
                 chunks.append(
                     DocumentChunk(
                         group_name="表格数据" if section.is_table else (section.title or "正文"),
-                        content=segment,
+                        content=prefix + segment,
                         metadata={
-                            "doc_title": doc_title,
+                            # "doc_title": doc_title,
+                            "doc_title": str(Path(source_file).stem),
                             "section_path": " > ".join(section.path),
                         },
                         source_file=source_file,

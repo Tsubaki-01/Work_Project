@@ -219,9 +219,11 @@ class ChunkIngestor:
         else:
             id_source = (
                 f"{chunk.get('source_file', '')}|"
+                f"{chunk.get('doc_type', '')}|"
                 f"{chunk.get('group_name', '')}|"
+                f"{chunk.get('metadata', {}).get('section_path', '')}|"
+                f"{chunk.get('metadata', {}).get('标题', '')}|"
                 f"{chunk.get('sub_index', 0)}|"
-                f"{content}"
             )
             chunk_id = hashlib.sha256(id_source.encode()).hexdigest()
 
