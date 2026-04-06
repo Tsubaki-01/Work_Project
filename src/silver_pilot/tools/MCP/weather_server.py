@@ -147,6 +147,7 @@ async def query_weather(location: str, date: str = "today") -> dict[str, Any]:
         "temperature": f"{cw.get('temperature', 'N/A')}°C",
         "wind_speed": f"{cw.get('windspeed', 'N/A')} km/h",
         "source": "Open-Meteo",
+        "message": f"城市：{location} | 天气：{weather_desc} | 温度：{cw.get('temperature', 'N/A')}°C | 风速：{cw.get('windspeed', 'N/A')} km/h",
     }
 
 
@@ -187,6 +188,7 @@ async def weather_forecast(location: str, days: int = 3) -> dict[str, Any]:
         "location": location,
         "forecast": forecast_list,
         "source": "Open-Meteo",
+        "message": f"城市：{location} | 预报：{forecast_list}",
     }
 
 

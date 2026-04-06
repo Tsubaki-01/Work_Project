@@ -124,9 +124,9 @@ def device_agent_node(state: AgentState) -> dict:
         all_results.append(result.to_dict())
 
         if result.success:
-            response_parts.append(f"✅ {result.result.get('message', '执行成功')}")
+            response_parts.append(f"{result.result.get('message', '执行成功')}")
         else:
-            response_parts.append(f"❌ {call['tool_name']}: {result.error}")
+            response_parts.append(f"{call['tool_name']}: {result.error}")
 
     response_text = "\n".join(response_parts)
 

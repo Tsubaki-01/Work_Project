@@ -40,7 +40,7 @@ dependencies = [
     "transformers==4.57.6",
     "types-pyyaml>=6.0.12.20250915",
     "unstructured[pdf]==0.18.31",
-    "uvicorn>=0.40.0",
+    "uvicorn[standard]>=0.40.0",
 ]
 
 [dependency-groups]

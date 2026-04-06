@@ -127,8 +127,7 @@ class MCPClient:
                 # 工具说明
                 # TODO：目前没有用上，后续修改代码逻辑与prompt为自动读取动态加载
                 tools = await session.list_tools()
-                logger.info(f"MCP 工具列表 | tools={tools}")
-
+                logger.info(f"MCP 工具列表 | tools={[tool.name for tool in tools.tools]}")
                 # 调用工具：发送 JSON-RPC tools/call 请求
                 result = await session.call_tool(tool_name, arguments)
 

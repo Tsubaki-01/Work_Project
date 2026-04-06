@@ -221,7 +221,7 @@ python scripts/rag/ingest_documents.py
 ### 5. 启动
 
 ```bash
-uvicorn silver_pilot.server.app:app --host 0.0.0.0 --port 8080 --reload
+uv run -m uvicorn silver_pilot.server.app:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 访问 http://localhost:8080。
@@ -229,7 +229,7 @@ uvicorn silver_pilot.server.app:app --host 0.0.0.0 --port 8080 --reload
 Demo 模式 (不连数据库)：
 
 ```bash
-DEMO_MODE=true uvicorn silver_pilot.server.app:app --port 8080
+DEMO_MODE=true uv run -m uvicorn silver_pilot.server.app:app --port 8080
 ```
 
 ### 6. 代码调用
