@@ -12,7 +12,7 @@ from typing import Any
 from datasets import load_dataset
 from FlagEmbedding import FlagModel
 from pydantic import BaseModel, Field, ValidationError
-from pymilvus import CollectionSchema, DataType, FieldSchema
+from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, Function, FunctionType
 from tqdm import tqdm
 
 # ================= 导入项目配置与基建 =================
@@ -84,15 +84,43 @@ class HuatuoDataPipeline:
         """定义并初始化集合 Schema"""
         fields: list[FieldSchema] = [
             FieldSchema(name="qa_id", dtype=DataType.INT64, is_primary=True, auto_id=False),
-            FieldSchema(name="question_text", dtype=DataType.VARCHAR, max_length=1000),
+            FieldSchema(
+                name="question_text",
+                dtype=DataType.VARCHAR,
+                max_length=1000,
+                enable_analyzer=True,
+                analyzer_params={"type": "chinese"},
+            ),
             FieldSchema(name="answer_text", dtype=DataType.VARCHAR, max_length=4000),
             FieldSchema(name="score", dtype=DataType.INT16),
             FieldSchema(name="department", dtype=DataType.VARCHAR, max_length=100),
             FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=100),
             FieldSchema(name="question_vector", dtype=DataType.FLOAT_VECTOR, dim=self.vector_dim),
+            FieldSchema(name="question_sparse", dtype=DataType.SPARSE_FLOAT_VECTOR),
         ]
+
         schema = CollectionSchema(fields=fields, description="Huatuo26M-Lite 医疗问答库")
+
+        bm25_function = Function(
+            name="qa_bm25",
+            function_type=FunctionType.BM25,
+            input_field_names=["question_text"],
+            output_field_names=["question_sparse"],
+        )
+        schema.add_function(bm25_function)
+
         self.db_manager.create_collection(schema=schema, index_field_name="question_vector")
+
+        # 为稀疏向量创建索引
+        if isinstance(self.db_manager.collection, Collection):
+            self.db_manager.collection.create_index(
+                field_name="question_sparse",
+                index_params={
+                    "metric_type": "BM25",
+                    "index_type": "SPARSE_INVERTED_INDEX",
+                },
+            )
+            logger.info("已创建 question_sparse BM25 索引")
 
     def _load_model(self) -> None:
         """加载 BGE-M3 模型，开启 fp16 加速显存吞吐"""
@@ -138,7 +166,8 @@ class HuatuoDataPipeline:
             # HuggingFace Datasets 切片返回的是 Dict[List]，将其转换为 List[Dict] 以便 Pydantic 校验
             keys = batch_raw.keys()
             batch_list: list[dict[str, Any]] = [
-                dict(zip(keys, vals, strict=False)) for vals in zip(*batch_raw.values(), strict=False)
+                dict(zip(keys, vals, strict=False))
+                for vals in zip(*batch_raw.values(), strict=False)
             ]
 
             valid_items: list[HuatuoQAModel] = []
@@ -148,7 +177,9 @@ class HuatuoDataPipeline:
                 try:
                     valid_items.append(HuatuoQAModel(**item))
                 except ValidationError as e:
-                    logger.warning(f"⚠️ 脏数据拦截 (ID: {item.get('id', 'N/A')}): {e.errors()[0]['msg']}")
+                    logger.warning(
+                        f"⚠️ 脏数据拦截 (ID: {item.get('id', 'N/A')}): {e.errors()[0]['msg']}"
+                    )
                     fail_count += 1
                     continue
 
@@ -196,7 +227,9 @@ class HuatuoDataPipeline:
                 # 🚀 DLQ (死信队列) 实现
                 # ==========================================
                 dlq_file_path = DLQ_PATH
-                logger.warning(f"正在将该批次 {len(valid_items)} 条数据写入死信文件: {dlq_file_path}")
+                logger.warning(
+                    f"正在将该批次 {len(valid_items)} 条数据写入死信文件: {dlq_file_path}"
+                )
                 dlq_items: list[dict[str, Any]] = [item.model_dump() for item in valid_items]
                 write_to_dlq(dlq_file_path, dlq_items, str(e))
 

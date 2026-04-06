@@ -8,7 +8,15 @@
 from pathlib import Path
 from typing import Any
 
-from pymilvus import Collection, CollectionSchema, connections, utility
+from pymilvus import (
+    AnnSearchRequest,
+    Collection,
+    CollectionSchema,
+    RRFRanker,
+    WeightedRanker,
+    connections,
+    utility,
+)
 
 # ================= 导入 =================
 from silver_pilot.config import config
@@ -227,4 +235,45 @@ class MilvusManager:
             return res
         except Exception as e:
             logger.error(f"❌ 删除操作失败 (expr={expr}): {e}")
+            raise
+
+    def hybrid_search(
+        self,
+        reqs: list[AnnSearchRequest],
+        rerank: RRFRanker | WeightedRanker | None = None,
+        limit: int = 5,
+        output_fields: list[str] | None = None,
+    ) -> list[Any]:
+        """
+        混合检索：同时执行多路 ANN 检索（如 dense + BM25 sparse），
+        用 Reranker 策略融合多路结果后返回 Top-K。
+
+        :param reqs: AnnSearchRequest 列表，每个请求对应一路检索
+        :param rerank: 融合策略，默认 RRFRanker(k=60)
+        :param limit: 最终返回的 Top-K 数量
+        :param output_fields: 需要随结果返回的字段列表
+        :return: 融合后的检索结果
+        """
+        if not self.collection:
+            raise ValueError("Collection 未初始化。")
+
+        self.collection.load()
+
+        if rerank is None:
+            rerank = RRFRanker(k=60)
+
+        try:
+            logger.debug(
+                f"🔍 发起混合检索, 路数={len(reqs)}, limit={limit}, "
+                f"ranker={type(rerank).__name__}"
+            )
+            results = self.collection.hybrid_search(
+                reqs=reqs,
+                rerank=rerank,
+                limit=limit,
+                output_fields=output_fields,
+            )
+            return results
+        except Exception as e:
+            logger.error(f"❌ 混合检索失败: {e}")
             raise

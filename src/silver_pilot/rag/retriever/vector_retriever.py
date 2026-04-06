@@ -2,10 +2,13 @@
 模块名称：vector_retriever
 功能描述：Milvus 向量数据库检索器，封装对 medical_qa_lite（问答库）和
          medical_knowledge_base（知识库）两个集合的差异化检索策略。
+         支持纯向量检索和 dense + BM25 混合检索两种模式。
          QA 库用完整 query 检索相似问题，知识库用子问题/关键词检索文档片段。
 """
 
 from __future__ import annotations
+
+from pymilvus import AnnSearchRequest
 
 from silver_pilot.config import config
 from silver_pilot.dao import MilvusManager
@@ -32,6 +35,9 @@ class VectorRetriever:
     - **medical_qa_lite**: 用重写后的完整 query 检索相似问题，适合有明确问答模式的需求
     - **medical_knowledge_base**: 用子问题/关键实体短语检索文档片段，适合需要定位具体段落的需求
 
+    支持模式：
+    - Dense + BM25 混合检索，利用 Milvus 原生 BM25 全文搜索与 Dense 结果进行 RRF 融合去重输出
+
     使用示例::
 
         retriever = VectorRetriever(backend="qwen")
@@ -52,7 +58,10 @@ class VectorRetriever:
         self.qa_manager = MilvusManager(collection_name=qa_collection)
         self.kb_manager = MilvusManager(collection_name=kb_collection)
 
-        logger.info(f"VectorRetriever 初始化完成 | qa={qa_collection} | kb={kb_collection}")
+        logger.info(
+            f"VectorRetriever 初始化完成 | qa={qa_collection} | kb={kb_collection} "
+            "| mode=hybrid(dense+BM25)"
+        )
 
     # ──────────────────────────────────────────────────
     # 统一入口
@@ -70,6 +79,9 @@ class VectorRetriever:
         """
         对两个集合同时执行检索并合并结果。
 
+        使用 Milvus 原生 hybrid_search 同时执行
+        dense 向量检索和 BM25 全文检索，RRF 融合后去重输出。
+
         Args:
             processed_query: 查询处理阶段的输出
             top_k: 每个集合返回的最大结果数
@@ -81,19 +93,41 @@ class VectorRetriever:
             list[RetrievalResult]: 合并后的检索结果
         """
         all_results: list[RetrievalResult] = []
+        seen_contents: set[str] = set()  # 跨集合去重
 
         if qa_enabled:
             qa_results = self.retrieve_qa(processed_query.rewritten_query, top_k=top_k)
-            all_results.extend(qa_results)
+            for r in qa_results:
+                content_key = r.content[:100]
+                if content_key not in seen_contents:
+                    seen_contents.add(content_key)
+                    all_results.append(r)
 
         if kb_enabled:
             kb_results = self.retrieve_knowledge(processed_query, top_k=top_k, expr=kb_filters)
-            all_results.extend(kb_results)
+            for r in kb_results:
+                content_key = r.content[:100]
+                if content_key not in seen_contents:
+                    seen_contents.add(content_key)
+                    all_results.append(r)
 
-        logger.info(
-            f"向量检索完成 | QA={len([r for r in all_results if r.source == RetrievalSource.MILVUS_QA])} | "
-            f"KB={len([r for r in all_results if r.source == RetrievalSource.MILVUS_KNOWLEDGE])}"
+        # 统计
+        qa_count = len(
+            [
+                r
+                for r in all_results
+                if r.source == RetrievalSource.MILVUS_QA
+            ]
         )
+        kb_count = len(
+            [
+                r
+                for r in all_results
+                if r.source == RetrievalSource.MILVUS_KNOWLEDGE
+            ]
+        )
+
+        logger.info(f"向量检索完成 | QA={qa_count} | KB={kb_count} |模式=hybrid(dense+BM25)")
         return all_results
 
     # ──────────────────────────────────────────────────
@@ -105,61 +139,44 @@ class VectorRetriever:
         query: str,
         *,
         top_k: int = DEFAULT_TOP_K,
-        min_score: float = 0.5,
+        min_score: float = 0.02,
     ) -> list[RetrievalResult]:
         """
-        在 medical_qa_lite 中检索与 query 最相似的问答对。
-
-        策略：用重写后的完整 query 编码向量，在 question_vector 上做近似搜索。
+        在 medical_qa_lite 中利用 Milvus 原生 hybrid_search
+        同时执行 dense 向量检索和 BM25 全文检索。
         """
         logger.debug(f"QA 库检索 | query={query[:30]}... | top_k={top_k}")
 
         try:
-            # 编码查询
             query_vector = self.embedder.encode_query(query)
 
-            # 执行检索
-            results = self.qa_manager.search_vectors(
-                query_vectors=[query_vector],
+            # 构建 dense 检索请求
+            dense_req = AnnSearchRequest(
+                data=[query_vector],
                 anns_field="question_vector",
+                param={"metric_type": "COSINE", "params": {"ef": 64}},
                 limit=top_k,
+            )
+
+            # 构建 BM25 检索请求（传入原始文本）
+            bm25_req = AnnSearchRequest(
+                data=[query],
+                anns_field="question_sparse",
+                param={"metric_type": "BM25"},
+                limit=top_k,
+            )
+
+            # 执行混合检索
+            results = self.qa_manager.hybrid_search(
+                reqs=[dense_req, bm25_req],
+                limit=top_k + top_k,
                 output_fields=["question_text", "answer_text", "department", "score"],
             )
 
-            retrieval_results: list[RetrievalResult] = []
-
-            for hits in results:
-                for hit in hits:
-                    similarity = hit.score
-                    if similarity < min_score:
-                        continue
-
-                    entity = hit.entity
-                    question = entity.get("question_text", "")
-                    answer = entity.get("answer_text", "")
-                    department = entity.get("department", "")
-
-                    # 组装为 "问题 + 回答" 的格式
-                    content = f"问: {question}\n答: {answer}"
-
-                    retrieval_results.append(
-                        RetrievalResult(
-                            content=content,
-                            source=RetrievalSource.MILVUS_QA,
-                            score=similarity,
-                            metadata={
-                                "question": question,
-                                "department": department,
-                                "qa_quality_score": entity.get("score", 0),
-                            },
-                        )
-                    )
-
-            logger.debug(f"QA 库检索返回 {len(retrieval_results)} 条结果")
-            return retrieval_results
+            return self._parse_hybrid_qa_results(results, min_score=min_score)
 
         except Exception as e:
-            logger.error(f"QA 库检索失败: {e}")
+            logger.error(f"QA 库 hybrid 检索失败: {e}")
             return []
 
     # ──────────────────────────────────────────────────
@@ -182,7 +199,6 @@ class VectorRetriever:
         - 如果无子查询，用重写后的主 query 检索
         - 支持标量过滤（doc_type, group_name 等）
         """
-        # 确定用于检索的 query 列表
         search_queries = (
             processed_query.sub_queries
             if processed_query.sub_queries
@@ -192,14 +208,13 @@ class VectorRetriever:
         logger.debug(f"知识库检索 | queries={len(search_queries)} | expr={expr}")
 
         all_results: list[RetrievalResult] = []
-        seen_contents: set[str] = set()  # 用于跨 query 去重
+        seen_contents: set[str] = set()
 
         for query in search_queries:
             results = self._search_knowledge_single(
                 query, top_k=top_k, expr=expr, min_score=min_score
             )
             for r in results:
-                # 简单去重：基于内容前100字符的哈希
                 content_key = r.content[:100]
                 if content_key not in seen_contents:
                     seen_contents.add(content_key)
@@ -214,17 +229,33 @@ class VectorRetriever:
         *,
         top_k: int = DEFAULT_TOP_K,
         expr: str | None = None,
-        min_score: float = 0.4,
+        min_score: float = 0.02,
     ) -> list[RetrievalResult]:
-        """对知识库执行单次向量检索。"""
+        """对知识库执行混合检索 (Dense + BM25)。"""
         try:
             query_vector = self.embedder.encode_query(query)
 
-            results = self.kb_manager.search_vectors(
-                query_vectors=[query_vector],
+            # Dense 检索请求
+            dense_req = AnnSearchRequest(
+                data=[query_vector],
                 anns_field="embedding",
+                param={"metric_type": "COSINE", "params": {"ef": 64}},
                 limit=top_k,
                 expr=expr,
+            )
+
+            # BM25 检索请求
+            bm25_req = AnnSearchRequest(
+                data=[query],
+                anns_field="content_sparse",
+                param={"metric_type": "BM25"},
+                limit=top_k,
+                expr=expr,
+            )
+
+            results = self.kb_manager.hybrid_search(
+                reqs=[dense_req, bm25_req],
+                limit=top_k + top_k,
                 output_fields=[
                     "content",
                     "title",
@@ -235,46 +266,101 @@ class VectorRetriever:
                 ],
             )
 
-            retrieval_results: list[RetrievalResult] = []
-
-            for hits in results:
-                for hit in hits:
-                    similarity = hit.score
-                    if similarity < min_score:
-                        continue
-
-                    entity = hit.entity
-                    content = entity.get("content", "")
-                    title = entity.get("title", "")
-
-                    # 如果有标题，作为上下文前缀
-                    display_content = f"[{title}] {content}" if title else content
-
-                    retrieval_results.append(
-                        RetrievalResult(
-                            content=display_content,
-                            source=RetrievalSource.MILVUS_KNOWLEDGE,
-                            score=similarity,
-                            metadata={
-                                "title": title,
-                                "doc_type": entity.get("doc_type", ""),
-                                "group_name": entity.get("group_name", ""),
-                                "source_file": entity.get("source_file", ""),
-                                "metadata": entity.get("meta", {}),
-                            }
-                            if entity.get("doc_type", "") == "drug_manual"
-                            else {
-                                "title": title,
-                                "doc_type": entity.get("doc_type", ""),
-                                "group_name": entity.get("group_name", ""),
-                                "source_file": entity.get("source_file", ""),
-                                "section_path": entity.get("meta", {}).get("section_path", ""),
-                            },
-                        )
-                    )
-
-            return retrieval_results
+            return self._parse_hybrid_kb_results(results, min_score=min_score)
 
         except Exception as e:
-            logger.error(f"知识库单次检索失败: {e}")
+            logger.error(f"知识库 hybrid 检索失败: {e}")
             return []
+
+    # ──────────────────────────────────────────────────
+    # 结果解析 — QA
+    # ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_hybrid_qa_results(
+        results: list,
+        *,
+        min_score: float = 0.02,
+    ) -> list[RetrievalResult]:
+        """解析 QA 库的 hybrid_search 结果（RRF 融合后）。"""
+        retrieval_results: list[RetrievalResult] = []
+
+        for hits in results:
+            for hit in hits:
+                rrf_score = hit.score
+                if rrf_score < min_score:
+                    continue
+
+                entity = hit.fields if hasattr(hit, "fields") else hit.entity
+                question = entity.get("question_text", "")
+                answer = entity.get("answer_text", "")
+                department = entity.get("department", "")
+
+                content = f"问: {question}\n答: {answer}"
+
+                retrieval_results.append(
+                    RetrievalResult(
+                        content=content,
+                        source=RetrievalSource.MILVUS_QA,
+                        score=rrf_score,
+                        metadata={
+                            "question": question,
+                            "department": department,
+                            "qa_quality_score": entity.get("score", 0),
+                        },
+                    )
+                )
+
+        logger.debug(f"QA 库 hybrid 检索返回 {len(retrieval_results)} 条结果")
+        return retrieval_results
+
+    # ──────────────────────────────────────────────────
+    # 结果解析 — 知识库
+    # ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_hybrid_kb_results(
+        results: list,
+        *,
+        min_score: float = 0.02,
+    ) -> list[RetrievalResult]:
+        """解析知识库的 hybrid_search 结果（RRF 融合后）。"""
+        retrieval_results: list[RetrievalResult] = []
+
+        for hits in results:
+            for hit in hits:
+                rrf_score = hit.score
+                if rrf_score < min_score:
+                    continue
+
+                entity = hit.fields if hasattr(hit, "fields") else hit.entity
+                content = entity.get("content", "")
+                title = entity.get("title", "")
+
+                display_content = f"[{title}] {content}" if title else content
+
+                retrieval_results.append(
+                    RetrievalResult(
+                        content=display_content,
+                        source=RetrievalSource.MILVUS_KNOWLEDGE,
+                        score=rrf_score,
+                        metadata={
+                            "title": title,
+                            "doc_type": entity.get("doc_type", ""),
+                            "group_name": entity.get("group_name", ""),
+                            "source_file": entity.get("source_file", ""),
+                            "metadata": entity.get("meta", {}),
+                        }
+                        if entity.get("doc_type", "") == "drug_manual"
+                        else {
+                            "title": title,
+                            "doc_type": entity.get("doc_type", ""),
+                            "group_name": entity.get("group_name", ""),
+                            "source_file": entity.get("source_file", ""),
+                            "section_path": entity.get("meta", {}).get("section_path", ""),
+                        },
+                    )
+                )
+
+        logger.debug(f"知识库 hybrid 检索返回 {len(retrieval_results)} 条结果")
+        return retrieval_results
