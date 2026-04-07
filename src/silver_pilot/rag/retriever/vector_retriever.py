@@ -25,6 +25,8 @@ logger = get_channel_logger(config.LOG_DIR / "rag_retriever", "vector_retriever"
 DEFAULT_QA_COLLECTION = config.MILVUS_QA_COLLECTION
 DEFAULT_KB_COLLECTION = config.MILVUS_KB_COLLECTION
 DEFAULT_TOP_K = config.VECTOR_RETRIEVAL_TOP_K
+DEFAULT_QA_HYBRID_MIN_SCORE = float(getattr(config, "VECTOR_QA_HYBRID_MIN_SCORE", 0.005))
+DEFAULT_KB_HYBRID_MIN_SCORE = float(getattr(config, "VECTOR_KB_HYBRID_MIN_SCORE", 0.005))
 
 
 class VectorRetriever:
@@ -93,27 +95,29 @@ class VectorRetriever:
             list[RetrievalResult]: 合并后的检索结果
         """
         all_results: list[RetrievalResult] = []
-        seen_contents: set[str] = set()  # 跨集合去重
+        seen_keys: set[str] = set()  # 跨集合去重，优先使用 chunk_id
 
         if qa_enabled:
             qa_results = self.retrieve_qa(processed_query.rewritten_query, top_k=top_k)
             for r in qa_results:
-                content_key = r.content[:100]
-                if content_key not in seen_contents:
-                    seen_contents.add(content_key)
+                result_key = self._result_identity(r)
+                if result_key not in seen_keys:
+                    seen_keys.add(result_key)
                     all_results.append(r)
 
         if kb_enabled:
             kb_results = self.retrieve_knowledge(processed_query, top_k=top_k, expr=kb_filters)
             for r in kb_results:
-                content_key = r.content[:100]
-                if content_key not in seen_contents:
-                    seen_contents.add(content_key)
+                result_key = self._result_identity(r)
+                if result_key not in seen_keys:
+                    seen_keys.add(result_key)
                     all_results.append(r)
 
         # 统计
         qa_count = len([r for r in all_results if r.source == RetrievalSource.MILVUS_QA])
         kb_count = len([r for r in all_results if r.source == RetrievalSource.MILVUS_KNOWLEDGE])
+
+        all_results.sort(key=lambda item: item.score, reverse=True)
 
         logger.info(f"向量检索完成 | QA={qa_count} | KB={kb_count} |模式=hybrid(dense+BM25)")
         return all_results
@@ -127,7 +131,7 @@ class VectorRetriever:
         query: str,
         *,
         top_k: int = DEFAULT_TOP_K,
-        min_score: float = 0.005,
+        min_score: float = DEFAULT_QA_HYBRID_MIN_SCORE,
     ) -> list[RetrievalResult]:
         """
         在 medical_qa_lite 中利用 Milvus 原生 hybrid_search
@@ -177,7 +181,7 @@ class VectorRetriever:
         *,
         top_k: int = DEFAULT_TOP_K,
         expr: str | None = None,
-        min_score: float = 0.05,
+        min_score: float = DEFAULT_KB_HYBRID_MIN_SCORE,
     ) -> list[RetrievalResult]:
         """
         在 medical_knowledge_base 中检索相关文档片段。
@@ -196,18 +200,19 @@ class VectorRetriever:
         logger.debug(f"知识库检索 | queries={len(search_queries)} | expr={expr}")
 
         all_results: list[RetrievalResult] = []
-        seen_contents: set[str] = set()
+        seen_keys: set[str] = set()
 
         for query in search_queries:
             results = self._search_knowledge_single(
                 query, top_k=top_k, expr=expr, min_score=min_score
             )
             for r in results:
-                content_key = r.content[:100]
-                if content_key not in seen_contents:
-                    seen_contents.add(content_key)
+                result_key = self._result_identity(r)
+                if result_key not in seen_keys:
+                    seen_keys.add(result_key)
                     all_results.append(r)
 
+        all_results.sort(key=lambda item: item.score, reverse=True)
         logger.debug(f"知识库检索返回 {len(all_results)} 条去重结果")
         return all_results
 
@@ -217,7 +222,7 @@ class VectorRetriever:
         *,
         top_k: int = DEFAULT_TOP_K,
         expr: str | None = None,
-        min_score: float = 0.005,
+        min_score: float = DEFAULT_KB_HYBRID_MIN_SCORE,
     ) -> list[RetrievalResult]:
         """对知识库执行混合检索 (Dense + BM25)。"""
         try:
@@ -245,6 +250,7 @@ class VectorRetriever:
                 reqs=[dense_req, bm25_req],
                 limit=top_k + top_k,
                 output_fields=[
+                    "chunk_id",
                     "content",
                     "title",
                     "doc_type",
@@ -268,7 +274,7 @@ class VectorRetriever:
     def _parse_hybrid_qa_results(
         results: list,
         *,
-        min_score: float = 0.005,
+        min_score: float = DEFAULT_QA_HYBRID_MIN_SCORE,
     ) -> list[RetrievalResult]:
         """解析 QA 库的 hybrid_search 结果（RRF 融合后）。"""
         retrieval_results: list[RetrievalResult] = []
@@ -310,7 +316,7 @@ class VectorRetriever:
     def _parse_hybrid_kb_results(
         results: list,
         *,
-        min_score: float = 0.005,
+        min_score: float = DEFAULT_KB_HYBRID_MIN_SCORE,
     ) -> list[RetrievalResult]:
         """解析知识库的 hybrid_search 结果（RRF 融合后）。"""
         retrieval_results: list[RetrievalResult] = []
@@ -322,8 +328,10 @@ class VectorRetriever:
                     continue
 
                 entity = hit.fields if hasattr(hit, "fields") else hit.entity
+                chunk_id = entity.get("chunk_id", "")
                 content = entity.get("content", "")
                 title = entity.get("title", "")
+                meta = entity.get("meta", {})
 
                 display_content = f"[{title}] {content}" if title else content
 
@@ -333,22 +341,32 @@ class VectorRetriever:
                         source=RetrievalSource.MILVUS_KNOWLEDGE,
                         score=rrf_score,
                         metadata={
+                            "chunk_id": chunk_id,
                             "title": title,
                             "doc_type": entity.get("doc_type", ""),
                             "group_name": entity.get("group_name", ""),
                             "source_file": entity.get("source_file", ""),
-                            "metadata": entity.get("meta", {}),
+                            "metadata": meta,
                         }
                         if entity.get("doc_type", "") == "drug_manual"
                         else {
+                            "chunk_id": chunk_id,
                             "title": title,
                             "doc_type": entity.get("doc_type", ""),
                             "group_name": entity.get("group_name", ""),
                             "source_file": entity.get("source_file", ""),
-                            "section_path": entity.get("meta", {}).get("section_path", ""),
+                            "section_path": meta.get("section_path", ""),
                         },
                     )
                 )
 
         logger.debug(f"知识库 hybrid 检索返回 {len(retrieval_results)} 条结果")
         return retrieval_results
+
+    @staticmethod
+    def _result_identity(result: RetrievalResult) -> str:
+        """优先使用稳定的 chunk_id 做去重，缺失时再回退到内容前缀。"""
+        chunk_id = str(result.metadata.get("chunk_id", "")).strip()
+        if chunk_id:
+            return f"chunk:{chunk_id}"
+        return f"content:{result.content[:100]}"

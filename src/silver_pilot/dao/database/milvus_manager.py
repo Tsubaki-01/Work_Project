@@ -263,10 +263,6 @@ class MilvusManager:
             rerank = RRFRanker(k=60)
 
         try:
-            logger.debug(
-                f"🔍 发起混合检索, 路数={len(reqs)}, limit={limit}, "
-                f"ranker={type(rerank).__name__}"
-            )
             results = self.collection.hybrid_search(
                 reqs=reqs,
                 rerank=rerank,
