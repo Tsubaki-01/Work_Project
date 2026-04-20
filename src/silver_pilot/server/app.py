@@ -17,6 +17,7 @@ import time
 import traceback
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -438,9 +439,9 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
         # 逐节点流式处理，每个节点实时发送 WS 事件
         events = await asyncio.to_thread(_stream_with_timing, inp, cfg)
         print(f"[Agent] 共 {len(events)} 个节点事件")
-        has_interrupt_event = any(node_name == "__interrupt__" for node_name, _, _ in events)
+        has_interrupt_event = any(node_name == "__interrupt__" for node_name, _, _, _, _ in events)
 
-        for node_name, node_output, duration_ms in events:
+        for node_name, node_output, duration_ms, start_ms, end_ms in events:
             if node_name == "__interrupt__":
                 # 中断是控制事件，不应作为可视化节点渲染。
                 continue
@@ -470,6 +471,7 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
             _fill_debug(node_name, node_output, dbg)
 
             # 发送 node_end（包含耗时）
+            duration_ms = max(duration_ms, 1.0) if duration_ms > 0 else 0.0
             time_str = (
                 f"{duration_ms:.0f}ms" if duration_ms < 1000 else f"{duration_ms / 1000:.1f}s"
             )
@@ -486,6 +488,9 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
                     "name": display_name,
                     "color": color,
                     "time": time_str,
+                    "duration_ms": round(duration_ms, 1),
+                    "start_ms": round(start_ms, 3) if start_ms is not None else None,
+                    "end_ms": round(end_ms, 3) if end_ms is not None else None,
                     "status": "done",
                     "parallel": in_parallel_flow and is_parallel_agent,
                     "event_seq": event_seq,
@@ -531,30 +536,54 @@ async def _agent_response(ws: WebSocket, sid: str, inc: WSIncoming) -> None:
             await ws.send_text(WSOutgoing(type="error", message=f"{nm}: {e}").model_dump_json())
 
 
-def _stream_with_timing(inp: dict, cfg: dict) -> list[tuple[str, dict, float]]:
+def _stream_with_timing(
+    inp: dict, cfg: dict
+) -> list[tuple[str, dict, float, float | None, float | None]]:
     """
     同步执行 graph.stream()，为每个节点记录真实耗时。
 
     Returns:
-        list[(node_name, node_output, duration_ms)]
+        list[(node_name, node_output, duration_ms, start_ms, end_ms)]
     """
     assert _graph is not None
-    events: list[tuple[str, dict, float]] = []
+    events: list[tuple[str, dict, float, float | None, float | None]] = []
+    update_events: list[tuple[str, dict, float | None, float | None, float | None]] = []
+    task_start_ms: dict[str, float] = {}
+    timings_by_name: dict[str, list[tuple[float, float, float]]] = {}
     stream_start = time.perf_counter()
-    prev_tick = stream_start
 
-    for chunk in _graph.stream(inp, config=cfg, stream_mode="updates"):
-        now_tick = time.perf_counter()
-        elapsed_ms = max((now_tick - prev_tick) * 1000, 0.0)
-        items = list(chunk.items())
-        per_node_ms = elapsed_ms / max(len(items), 1)
+    # 使用 debug 事件中的 timestamp 计算 task -> task_result 精确耗时。
+    for chunk in _graph.stream(inp, config=cfg, stream_mode=["updates", "debug"]):
+        mode, payload = _parse_stream_chunk(chunk)
 
-        for node_name, node_output in items:
-            out = node_output if isinstance(node_output, dict) else {}
-            events.append((node_name, out, per_node_ms))
-            print(f"  [stream] {node_name}")
+        if mode == "updates" and isinstance(payload, dict):
+            for node_name, node_output in payload.items():
+                out = node_output if isinstance(node_output, dict) else {}
+                if node_name == "__interrupt__":
+                    update_events.append((node_name, out, 0.0, None, None))
+                    print("  [stream] __interrupt__")
+                    continue
+                if _is_runtime_meta_node(node_name):
+                    continue
+                update_events.append((node_name, out, None, None, None))
+                print(f"  [stream] {node_name}")
+            continue
 
-        prev_tick = now_tick
+        if mode == "debug" and isinstance(payload, dict):
+            _collect_task_timing(payload, task_start_ms, timings_by_name)
+
+    for node_name, node_output, duration_ms, start_ms, end_ms in update_events:
+        if duration_ms is None:
+            name_timings = timings_by_name.get(node_name, [])
+            if name_timings:
+                start_ms, end_ms, duration_ms = name_timings.pop(0)
+            else:
+                duration_ms = 0.0
+
+        if 0.0 < duration_ms < 1.0:
+            duration_ms = 1.0
+
+        events.append((node_name, node_output, max(duration_ms, 0.0), start_ms, end_ms))
 
     total_ms = (time.perf_counter() - stream_start) * 1000
     print(f"[stream] total wall-clock: {total_ms:.1f}ms")
@@ -563,36 +592,62 @@ def _stream_with_timing(inp: dict, cfg: dict) -> list[tuple[str, dict, float]]:
 
 
 def _fill_timing_summary(dbg: dict[str, Any]) -> None:
-    """根据 pipeline 生成简要 timing 摘要，突出并行组 wall-clock。"""
+    """根据 pipeline 生成 timing 摘要，并行部分按 wall-clock 严格计算。"""
     pipeline = dbg.get("pipeline", [])
     if not pipeline:
         return
 
-    total_ms = sum(_time_to_ms(n.get("time", "0ms")) for n in pipeline)
-    parallel_ms = 0.0
+    total_ms = sum(_node_duration_ms(n) for n in pipeline)
     serial_ms = 0.0
-    i = 0
-    while i < len(pipeline):
-        node = pipeline[i]
-        ms = _time_to_ms(node.get("time", "0ms"))
+    parallel_intervals: list[tuple[float, float]] = []
+
+    for node in pipeline:
+        ms = _node_duration_ms(node)
         if node.get("parallel"):
-            # 连续 parallel 节点按 wall-clock 取最大值
-            j = i
-            group_max = 0.0
-            while j < len(pipeline) and pipeline[j].get("parallel"):
-                group_max = max(group_max, _time_to_ms(pipeline[j].get("time", "0ms")))
-                j += 1
-            parallel_ms += group_max
-            i = j
+            st = node.get("start_ms")
+            ed = node.get("end_ms")
+            if isinstance(st, (int, float)) and isinstance(ed, (int, float)) and ed >= st:
+                parallel_intervals.append((float(st), float(ed)))
+            elif ms > 0:
+                # 缺少绝对起止时间时回退到持续时长近似区间。
+                parallel_intervals.append((0.0, float(ms)))
         else:
             serial_ms += ms
-            i += 1
+
+    parallel_ms = _merged_intervals_ms(parallel_intervals)
+    total_wall_ms = serial_ms + parallel_ms
 
     dbg["timing"] = {
         "total_ms_sum": round(total_ms, 1),
         "serial_ms_sum": round(serial_ms, 1),
         "parallel_wall_ms": round(parallel_ms, 1),
+        "total_wall_ms": round(total_wall_ms, 1),
     }
+
+
+def _node_duration_ms(node: dict[str, Any]) -> float:
+    duration_ms = node.get("duration_ms")
+    if isinstance(duration_ms, (int, float)):
+        return max(float(duration_ms), 0.0)
+    return _time_to_ms(node.get("time", "0ms"))
+
+
+def _merged_intervals_ms(intervals: list[tuple[float, float]]) -> float:
+    if not intervals:
+        return 0.0
+
+    sorted_intervals = sorted(intervals, key=lambda x: (x[0], x[1]))
+    merged_start, merged_end = sorted_intervals[0]
+    total = 0.0
+    for start, end in sorted_intervals[1:]:
+        if start <= merged_end:
+            merged_end = max(merged_end, end)
+        else:
+            total += max(merged_end - merged_start, 0.0)
+            merged_start, merged_end = start, end
+
+    total += max(merged_end - merged_start, 0.0)
+    return total
 
 
 def _time_to_ms(time_text: str) -> float:
@@ -607,6 +662,73 @@ def _time_to_ms(time_text: str) -> float:
         return float(t)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _is_runtime_meta_node(node_name: str) -> bool:
+    """识别 LangGraph stream 的运行时控制键（非业务节点）。"""
+    return isinstance(node_name, str) and node_name.startswith("__")
+
+
+def _parse_stream_chunk(chunk: Any) -> tuple[str, Any]:
+    """兼容 stream_mode 为 list 时的 (mode, payload) / (namespace, mode, payload) 形态。"""
+    if isinstance(chunk, tuple):
+        if len(chunk) == 2:
+            first, second = chunk
+            if first in {"updates", "debug", "tasks", "checkpoints"}:
+                return str(first), second
+            # 兜底：未知形态按 updates 处理，保持兼容。
+            return "updates", second
+        if len(chunk) == 3:
+            _, mode, payload = chunk
+            return str(mode), payload
+    if isinstance(chunk, dict):
+        return "updates", chunk
+    return "unknown", chunk
+
+
+def _collect_task_timing(
+    debug_event: dict[str, Any],
+    task_start_ms: dict[str, float],
+    timings_by_name: dict[str, list[tuple[float, float, float]]],
+) -> None:
+    """从 debug 事件提取 task/task_result 时间戳并累计节点耗时。"""
+    event_type = debug_event.get("type")
+    if event_type not in {"task", "task_result"}:
+        return
+
+    ts_ms = _iso_ts_to_ms(debug_event.get("timestamp"))
+    if ts_ms is None:
+        return
+
+    payload = debug_event.get("payload", {})
+    if not isinstance(payload, dict):
+        return
+
+    task_id = str(payload.get("id", ""))
+    task_name = str(payload.get("name", ""))
+
+    if event_type == "task":
+        if task_id:
+            task_start_ms[task_id] = ts_ms
+        return
+
+    if event_type == "task_result" and task_name:
+        start_ms = task_start_ms.pop(task_id, None) if task_id else None
+        if start_ms is None:
+            return
+        duration_ms = max(ts_ms - start_ms, 0.0)
+        timings_by_name.setdefault(task_name, []).append((start_ms, ts_ms, duration_ms))
+
+
+def _iso_ts_to_ms(ts: Any) -> float | None:
+    """将 ISO8601 时间戳转换为毫秒。"""
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        normalized = ts.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized).timestamp() * 1000
+    except (TypeError, ValueError):
+        return None
 
 
 def _resolve_event_group_id(node_name: str, in_parallel_flow: bool, is_parallel_agent: bool) -> str:

@@ -529,8 +529,16 @@ function rPipe(){
   const nsRaw=DD.pipeline||[];
   const ns=[];
   const seen=new Set();
+  const isRuntimeMeta=(n)=>typeof n?.name==='string'&&n.name.startsWith('__');
+  const nodeMs=(n)=>{
+    if(typeof n?.duration_ms==='number'&&Number.isFinite(n.duration_ms))return Math.max(n.duration_ms,0);
+    if(typeof n?.start_ms==='number'&&typeof n?.end_ms==='number'&&Number.isFinite(n.start_ms)&&Number.isFinite(n.end_ms))return Math.max(n.end_ms-n.start_ms,0);
+    return toMs(n?.time||'0ms');
+  };
+  const nodeTimeText=(n)=>{const ms=nodeMs(n);if(ms<=0)return'...';return ms<1000?`${Math.round(ms)}ms`:`${(ms/1000).toFixed(1)}s`;};
   for(let i=0;i<nsRaw.length;i++){
     const n=nsRaw[i]||{};
+    if(isRuntimeMeta(n))continue;
     const k=`${n.group_id||''}|${n.event_seq||0}|${n.name||''}`;
     if(seen.has(k))continue;
     seen.add(k);
@@ -564,10 +572,10 @@ function rPipe(){
     let segDurationMs=0;
     let segTip='段耗时口径：串行 sum';
     if(meta.cls==='parallel'){
-      segDurationMs=Math.max(...segNodes.map(n=>toMs(n.time||'0ms')),0);
+      segDurationMs=Math.max(...segNodes.map(n=>nodeMs(n)),0);
       segTip='段耗时口径：并行 max';
     }else{
-      segDurationMs=segNodes.reduce((sum,n)=>sum+toMs(n.time||'0ms'),0);
+      segDurationMs=segNodes.reduce((sum,n)=>sum+nodeMs(n),0);
       segTip='段耗时口径：串行 sum';
     }
     h+=`<div class="pipe-seg"><span class="pipe-seg-tag ${meta.cls}">${meta.label} · ${segNodeCount} 节点 · ${fmtMs(segDurationMs)}<span class="pipe-seg-tip" data-tip="${segTip}">i</span></span><div class="pipe-lane">`;
@@ -580,12 +588,12 @@ function rPipe(){
         while(j<segNodes.length&&segNodes[j].parallel){g.push(segNodes[j]);j++}
         h+=`<div class="pipe-lane-row parallel"><div class="pipe-parallel-group"><span class="pipe-parallel-label">PARALLEL × ${g.length}</span><div class="pipe-parallel-grid">`;
         g.forEach((pn)=>{
-          h+=`<div class="pipe-node ${pn.status||'done'}" style="background:${pn.color}12;border-color:${pn.status==='active'?pn.color:'transparent'}"><span class="pipe-dot" style="background:${pn.color}"></span><span class="pipe-node-name" style="color:${pn.color}">${pn.name}</span>${pn.status==='done'?`<span class="pipe-node-time mono">${pn.time}</span>`:''}</div>`;
+          h+=`<div class="pipe-node ${pn.status||'done'}" style="background:${pn.color}12;border-color:${pn.status==='active'?pn.color:'transparent'}"><span class="pipe-dot" style="background:${pn.color}"></span><span class="pipe-node-name" style="color:${pn.color}">${pn.name}</span>${pn.status==='done'?`<span class="pipe-node-time mono">${nodeTimeText(pn)}</span>`:''}</div>`;
         });
         h+='</div></div></div>';
         i=j;
       }else{
-        h+=`<div class="pipe-lane-row"><div class="pipe-node ${n.status||'done'}" style="background:${n.color}12;border-color:${n.status==='active'?n.color:'transparent'}"><span class="pipe-dot" style="background:${n.color}"></span><span class="pipe-node-name" style="color:${n.color}">${n.name}</span>${n.status==='done'?`<span class="pipe-node-time mono">${n.time}</span>`:''}</div></div>`;
+        h+=`<div class="pipe-lane-row"><div class="pipe-node ${n.status||'done'}" style="background:${n.color}12;border-color:${n.status==='active'?n.color:'transparent'}"><span class="pipe-dot" style="background:${n.color}"></span><span class="pipe-node-name" style="color:${n.color}">${n.name}</span>${n.status==='done'?`<span class="pipe-node-time mono">${nodeTimeText(n)}</span>`:''}</div></div>`;
         i++;
       }
     }
@@ -594,14 +602,14 @@ function rPipe(){
   });
   h+='</div>';
   const dn=ns.filter(n=>n.status==='done');
-  const tot=dn.reduce((s,n)=>s+toMs(n.time||'0ms'),0);
+  const tot=dn.reduce((s,n)=>s+nodeMs(n),0);
   let effectiveMs=0;let p=0;
   while(p<ns.length){
     if(ns[p].parallel){
       let q=p,gMax=0;
-      while(q<ns.length&&ns[q].parallel){gMax=Math.max(gMax,toMs(ns[q].time||'0ms'));q++}
+      while(q<ns.length&&ns[q].parallel){gMax=Math.max(gMax,nodeMs(ns[q]));q++}
       effectiveMs+=gMax;p=q;
-    }else{effectiveMs+=(toMs(ns[p].time||'0ms'));p++}
+    }else{effectiveMs+=(nodeMs(ns[p]));p++}
   }
   h+=`<div class="mono" style="font-size:10px;color:var(--text-hint)">Nodes:${dn.length}/${ns.length} Total:${fmtMs(tot)} | Effective:${fmtMs(effectiveMs)}</div>`;
   if(DD.timing&&typeof DD.timing.parallel_wall_ms==='number'){
@@ -634,6 +642,6 @@ function runDemo(k){
 init();
 </script>
 <script src="/static/pipeline-ordering.js?v=1"></script>
-<script src="/static/api-connector.js?v=6"></script>
+<script src="/static/api-connector.js?v=7"></script>
 </body>
 </html>

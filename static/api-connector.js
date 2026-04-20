@@ -284,7 +284,13 @@
 
       case "node_end":
         // 节点完成：标记 done + 写入耗时
-        _onNodeEnd(msg.node, msg.data || {}, msg.duration_ms || 0, msg.event_seq || 0, msg.group_id || "");
+        _onNodeEnd(
+          msg.node,
+          msg.data || {},
+          Number.isFinite(msg.duration_ms) ? msg.duration_ms : null,
+          msg.event_seq || 0,
+          msg.group_id || ""
+        );
         break;
 
       case "hitl_request":
@@ -309,6 +315,7 @@
 
   function _onNodeStart(nodeName, eventSeq, groupId) {
     if (!_pendingDebug) return;
+    if (_isRuntimeMetaNode(nodeName)) return;
 
     // 尽量匹配最近一个同名 active 节点，避免并行/恢复场景下覆盖历史节点
     const existingActive = _findLatestPipelineNode(nodeName, true);
@@ -338,8 +345,13 @@
 
   function _onNodeEnd(nodeName, data, durationMs, eventSeq, groupId) {
     if (!_pendingDebug) return;
+    if (_isRuntimeMetaNode(nodeName)) return;
 
-    const timeStr = durationMs < 1000 ? `${Math.round(durationMs)}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+    const hasDuration = Number.isFinite(durationMs) && durationMs >= 0;
+    const normalizedDuration = hasDuration ? Math.max(durationMs, 1) : null;
+    const timeStr = normalizedDuration === null
+      ? "..."
+      : (normalizedDuration < 1000 ? `${Math.round(normalizedDuration)}ms` : `${(normalizedDuration / 1000).toFixed(1)}s`);
     const isParallel = !!(data && data.parallel);
 
     if (nodeName === "Supervisor") {
@@ -353,6 +365,7 @@
     if (existingActive) {
       existingActive.status = "done";
       existingActive.time = timeStr;
+      existingActive.duration_ms = normalizedDuration;
       existingActive.parallel = isParallel || existingActive.parallel;
       if (eventSeq) existingActive.event_seq = eventSeq;
       if (groupId) existingActive.group_id = groupId;
@@ -361,6 +374,7 @@
         name: nodeName,
         color: _nodeColor(nodeName),
         time: timeStr,
+        duration_ms: normalizedDuration,
         status: "done",
         parallel: isParallel || (_parallelFlow && /Medical Agent|Device Agent|Chat Agent/.test(nodeName)),
         event_seq: eventSeq || 0,
@@ -412,6 +426,7 @@
     // 合并后端的完整 debug 数据（后端在 response 中发送最终版本）
     if (debug && debug.pipeline) {
       _pendingDebug = debug;
+      _sanitizePipeline(_pendingDebug);
       _parallelFlow = false;
       _pipelineInsertCounter = (_pendingDebug.pipeline || []).length;
       _normalizePipelineOrder();
@@ -701,6 +716,36 @@
       "Synthesizer": "var(--accent)", "Output Guard": "var(--n-grd)",
       "Memory Writer": "var(--text-hint)",
     }[name] || "var(--text-sub)";
+  }
+
+  function _isRuntimeMetaNode(nodeName) {
+    return typeof nodeName === "string" && nodeName.startsWith("__");
+  }
+
+  function _formatDurationMs(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "...";
+    if (ms < 1000) return `${Math.round(Math.max(ms, 1))}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  function _sanitizePipeline(debugObj) {
+    if (!debugObj || !Array.isArray(debugObj.pipeline)) return;
+    debugObj.pipeline = debugObj.pipeline
+      .filter((n) => n && !_isRuntimeMetaNode(n.name))
+      .map((n) => {
+        const node = { ...n };
+        let ms = Number.isFinite(node.duration_ms) ? Number(node.duration_ms) : null;
+        if (ms === null && Number.isFinite(node.start_ms) && Number.isFinite(node.end_ms)) {
+          ms = Math.max(Number(node.end_ms) - Number(node.start_ms), 0);
+        }
+        if (ms !== null) {
+          node.duration_ms = ms;
+          if (!node.time || node.time === "..." || node.time === "0ms") {
+            node.time = _formatDurationMs(ms);
+          }
+        }
+        return node;
+      });
   }
 
   // ── Global API ──

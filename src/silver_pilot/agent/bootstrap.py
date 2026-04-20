@@ -26,6 +26,7 @@ from .nodes.device_agent import set_executor
 from .nodes.medical_agent import set_pipeline
 from .nodes.memory_writer import set_profile_manager
 from .nodes.output_guard import set_summarizer
+from .nodes.response_synthesizer import initialize_synthesizer_backend
 from .tools.executor import ToolExecutor, set_mcp_client
 
 logger = get_channel_logger(config.LOG_DIR / "agent", "bootstrap")
@@ -95,6 +96,19 @@ def initialize_agent(
 
     summarizer = ConversationSummarizer()
     set_summarizer(summarizer)
+
+    # Response Synthesizer: 优先本地模型，失败时运行时自动降级到 API。
+    try:
+        local_ready = initialize_synthesizer_backend()
+        if local_ready:
+            logger.info("[2/3] Response Synthesizer 本地模型就绪")
+        else:
+            logger.warning("[2/3] Response Synthesizer 本地模型不可用，将降级到 API")
+    except Exception as e:
+        logger.warning(
+            f"[2/3] Response Synthesizer 初始化探测失败: {e}，将降级到 API"
+        )
+
     logger.info("[2/3] 组件就绪")
 
     # ── 3. 构建图 ──
