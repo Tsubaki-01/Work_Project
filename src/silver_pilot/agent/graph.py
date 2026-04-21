@@ -12,7 +12,7 @@
     Supervisor 通过 conditional_edges + Send 实现动态路由：
     - 单意图: route_by_intent 返回 str，路由到对应子 Agent
     - 多意图无依赖: route_by_intent 返回 list[Send]，并行分发
-    - 多意图有依赖: 子 Agent 执行后回流 supervisor，按队列继续调度
+    - 多意图有依赖: 子 Agent 执行后回流 supervisor，按 stage 批次推进
     - 所有任务完成后 current_agent=done，进入 response_synthesizer 聚合
 """
 

@@ -41,24 +41,24 @@ messages:
 
       ### Examples
 
-      **Input**: "阿司匹林一天吃几次，明天早上7点叫我吃药"
+      **Input**: "感冒吃什么药？这个药能和阿司匹林一起吃吗？"
       **User Emotion**: NEUTRAL
       **Output**:
       {
         "intents": [
-          {"type": "MEDICAL_QUERY", "sub_query": "阿司匹林一天吃几次", "priority": 1, "depends_on": []},
-          {"type": "DEVICE_CONTROL", "sub_query": "设置明天早上7点吃药提醒", "priority": 2, "depends_on": []}
+          {"type": "MEDICAL_QUERY", "sub_query": "感冒吃什么药？", "priority": 1, "depends_on": []},
+          {"type": "DEVICE_CONTROL", "sub_query": "感冒吃的药能不能和阿司匹林一起吃？", "priority": 2, "depends_on": [1]}
         ],
         "risk_level": "low"
       }
 
-      **Input**: "先告诉我布洛芬怎么吃，然后再帮我设一个今晚8点提醒"
+      **Input**: "告诉我布洛芬怎么吃，帮我设一个今晚8点提醒吃药的闹钟"
       **User Emotion**: NEUTRAL
       **Output**:
       {
         "intents": [
           {"type": "MEDICAL_QUERY", "sub_query": "布洛芬的服用建议", "priority": 1, "depends_on": []},
-          {"type": "DEVICE_CONTROL", "sub_query": "设置今晚8点吃药提醒", "priority": 2, "depends_on": [1]}
+          {"type": "DEVICE_CONTROL", "sub_query": "设置今晚8点吃药提醒", "priority": 2, "depends_on": []}
         ],
         "risk_level": "low"
       }

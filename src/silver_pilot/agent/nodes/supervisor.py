@@ -2,12 +2,12 @@
 模块名称：supervisor
 功能描述：Supervisor 循环编排节点，Agent 系统的"大脑"。负责意图分类、复合意图拆解、
          子 Agent 路由调度，以及循环终止判断。通过 LLM 结构化输出实现意图解析，
-         支持“无依赖并行 + 有依赖顺序”混合调度。
+         支持“组间并行，组内串行”的分批调度。
 
 核心职责：
     1. 首次进入时调用 LLM 完成意图分类与优先级排序
     2. 识别是否存在意图依赖（显式 depends_on + 关键词兜底）
-    3. 无依赖：沿用 Send 并行；有依赖：按队列顺序分批串行
+    3. 无依赖：沿用 Send 并行；有依赖：按 depends_on 拆分 stage 批次
     4. 子 Agent 执行完毕后回到 Supervisor 继续调度，直到 done
 """
 
@@ -122,7 +122,7 @@ def supervisor_node(state: AgentState) -> dict:
 
 
 def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
-    """首次调用 LLM 分类，并按依赖关系生成首批分发策略。"""
+    """首次调用 LLM 分类，并生成首批调度策略。"""
     user_query = extract_latest_query(state)
     total_turns = state.get("total_turns", 0) + 1
 
@@ -165,6 +165,7 @@ def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
         return {
             "pending_intents": [],
             "dispatch_intents": [emergency_intent],
+            "completed_intent_priorities": [],
             "current_agent": "emergency",
             "current_sub_query": emergency_intent.get("sub_query", user_query),
             "risk_level": "critical",
@@ -180,6 +181,7 @@ def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
         return {
             "pending_intents": [],
             "dispatch_intents": [only],
+            "completed_intent_priorities": [],
             "current_agent": only_agent,
             "current_sub_query": only.get("sub_query", ""),
             "risk_level": parsed.risk_level,
@@ -188,15 +190,17 @@ def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
             "total_turns": total_turns,
         }
 
-    if _should_use_sequential_dispatch(user_query, sorted_intents):
-        logger.info(f"检测到依赖关系，多意图顺序调度 | count={len(sorted_intents)}")
-        first, rest = sorted_intents[0], sorted_intents[1:]
-        first_agent = INTENT_TO_AGENT.get(first.get("type", "CHITCHAT"), "chat")
+    if _should_use_dependency_dispatch(user_query, sorted_intents):
+        sorted_intents = _ensure_dependency_edges(user_query, sorted_intents)
+        logger.info(f"检测到依赖关系，启用 stage 调度 | count={len(sorted_intents)}")
+        ready_batch, remain = _select_ready_batch(sorted_intents, completed_priorities=set())
+        batch_agent, batch_sub_query = _resolve_batch_dispatch(ready_batch)
         return {
-            "pending_intents": rest,
-            "dispatch_intents": [first],
-            "current_agent": first_agent,
-            "current_sub_query": first.get("sub_query", ""),
+            "pending_intents": remain,
+            "dispatch_intents": ready_batch,
+            "completed_intent_priorities": [],
+            "current_agent": batch_agent,
+            "current_sub_query": batch_sub_query,
             "risk_level": parsed.risk_level,
             "loop_count": next_loop,
             "retry_count": 0,
@@ -211,6 +215,7 @@ def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
     return {
         "pending_intents": [],
         "dispatch_intents": sorted_intents,
+        "completed_intent_priorities": [],
         "current_agent": "parallel",
         "current_sub_query": "",
         "risk_level": parsed.risk_level,
@@ -221,27 +226,39 @@ def _classify_and_dispatch(state: AgentState, *, next_loop: int) -> dict:
 
 
 def _dispatch_next_batch(state: AgentState, *, next_loop: int) -> dict:
-    """子 Agent 回流后，从 pending_intents 继续调度下一批。"""
+    """子 Agent 回流后，按依赖约束推进下一 stage。"""
+    completed_set = set(state.get("completed_intent_priorities", []))
+    for intent in state.get("dispatch_intents", []):
+        priority = intent.get("priority")
+        if isinstance(priority, int):
+            completed_set.add(priority)
+
+    completed_list = sorted(completed_set)
+
     pending = list(state.get("pending_intents", []))
     if not pending:
         logger.info("无剩余意图，进入 response_synthesizer")
         return {
             "dispatch_intents": [],
+            "completed_intent_priorities": completed_list,
             "current_agent": "done",
             "current_sub_query": "",
             "loop_count": next_loop,
         }
 
-    next_intent = pending[0]
-    remain_intents = pending[1:]
-    next_agent = INTENT_TO_AGENT.get(next_intent.get("type", "CHITCHAT"), "chat")
+    next_batch, remain_intents = _select_ready_batch(pending, completed_priorities=completed_set)
+    next_agent, next_sub_query = _resolve_batch_dispatch(next_batch)
 
-    logger.info(f"顺序调度下一意图 | type={next_intent.get('type', 'CHITCHAT')} | agent={next_agent}")
+    logger.info(
+        f"推进下一批次 | batch_size={len(next_batch)} | "
+        f"remaining={len(remain_intents)} | agent={next_agent}"
+    )
     return {
         "pending_intents": remain_intents,
-        "dispatch_intents": [next_intent],
+        "dispatch_intents": next_batch,
+        "completed_intent_priorities": completed_list,
         "current_agent": next_agent,
-        "current_sub_query": next_intent.get("sub_query", ""),
+        "current_sub_query": next_sub_query,
         "loop_count": next_loop,
         "retry_count": 0,
     }
@@ -258,6 +275,7 @@ def _build_fallback_chat_state(user_query: str, *, next_loop: int, total_turns: 
     return {
         "pending_intents": [],
         "dispatch_intents": [fallback_intent],
+        "completed_intent_priorities": [],
         "current_agent": "chat",
         "current_sub_query": user_query,
         "risk_level": "low",
@@ -290,8 +308,8 @@ def _normalize_and_sort_intents(intents: list[IntentItem], user_query: str) -> l
     return normalized
 
 
-def _should_use_sequential_dispatch(user_query: str, intents: list[dict]) -> bool:
-    """判断复合意图是否应转为顺序调度。"""
+def _should_use_dependency_dispatch(user_query: str, intents: list[dict]) -> bool:
+    """判断复合意图是否应启用依赖 stage 调度。"""
     if len(intents) <= 1:
         return False
 
@@ -303,6 +321,76 @@ def _should_use_sequential_dispatch(user_query: str, intents: list[dict]) -> boo
 
     sub_query_text = "；".join(str(intent.get("sub_query", "")) for intent in intents)
     return _has_dependency_signal(sub_query_text)
+
+
+def _ensure_dependency_edges(user_query: str, intents: list[dict]) -> list[dict]:
+    """依赖调度模式下，必要时补齐依赖边。"""
+    if not intents:
+        return intents
+
+    if any(intent.get("depends_on") for intent in intents):
+        return intents
+
+    if not _has_dependency_signal(user_query):
+        return intents
+
+    logger.info("检测到先后关系但 lacks depends_on，按 priority 注入线性依赖")
+
+    patched_intents: list[dict] = []
+    previous_priority: int | None = None
+    for intent in intents:
+        patched = {**intent}
+        if previous_priority is None:
+            patched["depends_on"] = []
+        else:
+            patched["depends_on"] = [previous_priority]
+
+        current_priority = patched.get("priority")
+        if isinstance(current_priority, int):
+            previous_priority = current_priority
+
+        patched_intents.append(patched)
+
+    return patched_intents
+
+
+def _select_ready_batch(
+    intents: list[dict], *, completed_priorities: set[int]
+) -> tuple[list[dict], list[dict]]:
+    """按 depends_on 选择当前可执行批次。"""
+    ready_batch: list[dict] = []
+    blocked_batch: list[dict] = []
+
+    for intent in intents:
+        deps = intent.get("depends_on", [])
+        if not isinstance(deps, list):
+            deps = []
+
+        if all(dep in completed_priorities for dep in deps):
+            ready_batch.append(intent)
+        else:
+            blocked_batch.append(intent)
+
+    if ready_batch:
+        return ready_batch, blocked_batch
+
+    # 兜底：防止错误依赖（循环/缺失）导致卡死。
+    logger.warning("依赖图无可执行节点，降级按优先级取首个意图")
+    return [intents[0]], intents[1:]
+
+
+def _resolve_batch_dispatch(batch: list[dict]) -> tuple[str, str]:
+    """将可执行批次映射为 current_agent 和 current_sub_query。"""
+    if not batch:
+        return "done", ""
+
+    if len(batch) == 1:
+        intent = batch[0]
+        return INTENT_TO_AGENT.get(intent.get("type", "CHITCHAT"), "chat"), intent.get(
+            "sub_query", ""
+        )
+
+    return "parallel", ""
 
 
 def _has_dependency_signal(text: str) -> bool:
